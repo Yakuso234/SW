@@ -20,3 +20,4 @@ spring:
   config:
     import:
       - nacos:common-dev.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - nacos:video-dev.yaml?group=DEFAULT_GROUP&refreshEnabled=true

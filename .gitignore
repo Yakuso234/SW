@@ -48,6 +48,7 @@ hs_err_pid*.log
 /docs/SW-问题与面试复盘.md
 /.git-upstream-backup/
 /.git-personal-bootstrap/
+/.file/local-test/
 
 ### Unused legacy showcase assets ###
 /.file/*.png

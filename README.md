@@ -138,6 +138,14 @@ mvn -DskipTests install
 3. `com.jiake.jk.videoprocessor.VideoProcessorApplication`
 4. `com.jiake.jk.gateway.GatewayApplication`
 
+真实视频异步链路验收（本地开发环境）：先启动上述服务与 Docker 基础中间件，再执行：
+
+```powershell
+.\scripts\verify-video-e2e.ps1
+```
+
+脚本会生成临时 2 秒 MP4，验证预签名上传、Outbox、RabbitMQ、FFmpeg 转码与抽帧、MinIO 落盘及状态回写；只写入本地开发数据。
+
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
 ## 近期里程碑
