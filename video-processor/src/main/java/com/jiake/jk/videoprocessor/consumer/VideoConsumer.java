@@ -6,6 +6,7 @@ import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.videoprocessor.service.VideoTranscodingService;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import lombok.extern.slf4j.Slf4j;
 
@@ -15,6 +16,16 @@ public class VideoConsumer {
 
     private final VideoPrivateClient videoPrivateClient;
     private final VideoTranscodingService videoTranscodingService;
+
+    /**
+     * 仅用于本地可控故障演练，默认关闭。开启后在转码完成、结果回写前暂停，
+     * 便于稳定模拟 Video Service 回写不可用并验证处理租约恢复。
+     */
+    @Value("${sw.video-processing.fault-injection.enabled:false}")
+    private boolean faultInjectionEnabled;
+
+    @Value("${sw.video-processing.fault-injection.before-complete-callback-delay-ms:0}")
+    private long beforeCompleteCallbackDelayMs;
 
     public VideoConsumer(VideoPrivateClient videoPrivateClient, VideoTranscodingService videoTranscodingService) {
         this.videoPrivateClient = videoPrivateClient;
@@ -40,6 +51,7 @@ public class VideoConsumer {
             }
 
             try {
+                delayBeforeCompletionCallbackIfConfigured(videoReviewMessage.getVideoId());
                 Result<Void> completeResult = videoPrivateClient.completeVideoProcessing(videoReviewMessage.getVideoId(),
                         new VideoPrivateClient.VideoProcessingResultRequest(processed.processedVideoKey(), processed.coverKey()));
                 if (completeResult.isError()) {
@@ -51,6 +63,21 @@ public class VideoConsumer {
             }
         } else {
             log.info("Video {} is already claimed or no longer processable, skip duplicate message", videoReviewMessage.getVideoId());
+        }
+    }
+
+    private void delayBeforeCompletionCallbackIfConfigured(Long videoId) {
+        if (!faultInjectionEnabled || beforeCompleteCallbackDelayMs <= 0) {
+            return;
+        }
+
+        log.warn("Local fault drill is delaying completion callback for video {} by {} ms", videoId,
+                beforeCompleteCallbackDelayMs);
+        try {
+            Thread.sleep(beforeCompleteCallbackDelayMs);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("本地故障演练等待被中断", exception);
         }
     }
 

@@ -148,6 +148,13 @@ mvn -DskipTests install
 
 消息死信队列配置首次启用时：先停止 Video Service 与 Video Processor，确认 `video.review.queue` 没有积压后执行 `./scripts/refresh-video-review-queue.ps1`，再启动两个服务。脚本拒绝删除有积压的队列。
 
+租约恢复故障演练（仅本地）：在 Video Processor 的 IDEA 运行参数中临时增加下列参数，会在转码完成、调用 Video Service 回写前暂停 15 秒。此时停止 Video Service，可稳定验证消息进入死信队列、处理租约到期后由 Outbox 补偿并重新完成处理；正常运行不要配置这两个参数。
+
+```text
+--sw.video-processing.fault-injection.enabled=true
+--sw.video-processing.fault-injection.before-complete-callback-delay-ms=15000
+```
+
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
 ## 近期里程碑
