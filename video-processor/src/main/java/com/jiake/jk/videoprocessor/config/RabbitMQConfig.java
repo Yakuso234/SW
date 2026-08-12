@@ -5,11 +5,16 @@ import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class RabbitMQConfig {
+
+    private static final String VIDEO_REVIEW_QUEUE = "video.review.queue";
+    private static final String VIDEO_REVIEW_DEAD_QUEUE = "video.review.dead.queue";
 
     @Bean
     public MessageConverter jsonMessageConverter() {
@@ -27,5 +32,18 @@ public class RabbitMQConfig {
         factory.setPrefetchCount(500); // 预取数量需足够大
         factory.setMessageConverter(jsonMessageConverter);
         return factory;
+    }
+
+    @Bean
+    public Queue videoReviewQueue() {
+        return QueueBuilder.durable(VIDEO_REVIEW_QUEUE)
+                .deadLetterExchange("")
+                .deadLetterRoutingKey(VIDEO_REVIEW_DEAD_QUEUE)
+                .build();
+    }
+
+    @Bean
+    public Queue videoReviewDeadQueue() {
+        return QueueBuilder.durable(VIDEO_REVIEW_DEAD_QUEUE).build();
     }
 }

@@ -5,6 +5,7 @@ import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -60,5 +61,15 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Queue queue() { return new Queue(RabbitMQConstant.VIDEO_REVIEW_QUEUE, true); }
+    public Queue queue() {
+        return QueueBuilder.durable(RabbitMQConstant.VIDEO_REVIEW_QUEUE)
+                .deadLetterExchange("")
+                .deadLetterRoutingKey(RabbitMQConstant.VIDEO_REVIEW_DEAD_QUEUE)
+                .build();
+    }
+
+    @Bean
+    public Queue videoReviewDeadQueue() {
+        return QueueBuilder.durable(RabbitMQConstant.VIDEO_REVIEW_DEAD_QUEUE).build();
+    }
 }

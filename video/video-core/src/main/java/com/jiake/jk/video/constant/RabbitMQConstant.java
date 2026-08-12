@@ -5,6 +5,7 @@ public class RabbitMQConstant {
      * review
      */
     public final static String VIDEO_REVIEW_QUEUE = "video.review.queue";
+    public final static String VIDEO_REVIEW_DEAD_QUEUE = "video.review.dead.queue";
 
     /**
      * Interaction

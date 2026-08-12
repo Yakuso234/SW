@@ -146,6 +146,8 @@ mvn -DskipTests install
 
 脚本会生成临时 2 秒 MP4，验证预签名上传、Outbox、RabbitMQ、FFmpeg 转码与抽帧、MinIO 落盘及状态回写；只写入本地开发数据。
 
+消息死信队列配置首次启用时：先停止 Video Service 与 Video Processor，确认 `video.review.queue` 没有积压后执行 `./scripts/refresh-video-review-queue.ps1`，再启动两个服务。脚本拒绝删除有积压的队列。
+
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
 ## 近期里程碑
