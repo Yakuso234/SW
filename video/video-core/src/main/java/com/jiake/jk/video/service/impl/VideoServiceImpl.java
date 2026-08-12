@@ -25,6 +25,7 @@ import com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus;
 import com.jiake.jk.video.pojo.entity.multi.VideoWithLike;
 import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.video.pojo.entity.VideoUploadTask;
+import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.request.DeletePublishedVideoRequest;
 import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.response.*;
@@ -81,6 +82,8 @@ public class VideoServiceImpl implements VideoService {
     private ObjectMapper objectMapper;
     @Autowired
     private MessageOutBoxMapper messageOutBoxMapper;
+    @Autowired
+    private VideoProcessingTaskMapper videoProcessingTaskMapper;
     @Autowired
     private ThreadPoolExecutor videoExecutor;
 
@@ -386,6 +389,12 @@ public class VideoServiceImpl implements VideoService {
         messageOutbox.setMessageBody(objectMapper.writeValueAsString(videoReviewMessage));
         messageOutbox.setStatus(MessageOutbox.OutboxStatus.PENDING);
         messageOutBoxMapper.insert(messageOutbox);
+
+        VideoProcessingTask processingTask = new VideoProcessingTask();
+        processingTask.setVideoId(video.getId());
+        processingTask.setStatus(VideoProcessingTask.ProcessingStatus.PENDING);
+        processingTask.setRetryCount(0);
+        videoProcessingTaskMapper.insert(processingTask);
 
         // 注册事务提交后发送消息
         TransactionSynchronizationManager.registerSynchronization(

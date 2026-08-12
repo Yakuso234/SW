@@ -2,7 +2,6 @@ package com.jiake.jk.videoprocessor.consumer;
 
 import com.jiake.jk.video.feign.VideoPrivateClient;
 import com.jiake.jk.common.response.Result;
-import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -21,8 +20,7 @@ public class VideoConsumer {
 
     @RabbitListener(queuesToDeclare = @Queue(name = "video.review.queue"))
     public void handleVideoPostMessage(VideoReviewMessage videoReviewMessage) {
-        Result<Boolean> result = videoPrivateClient.transitionVideoStatus(
-                videoReviewMessage.getVideoId(), Video.VideoStatus.PENDING_REVIEW, Video.VideoStatus.PROCESSING);
+        Result<Boolean> result = videoPrivateClient.claimVideoProcessing(videoReviewMessage.getVideoId());
         if (result.isError()) {
             throw new IllegalStateException("视频处理任务状态迁移调用失败: " + result.getMsg());
         }

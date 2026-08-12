@@ -15,4 +15,7 @@ public interface VideoPrivateClient {
      Result<Boolean> transitionVideoStatus(@PathVariable Long videoId,
                                            @RequestParam("expectedStatus") Video.VideoStatus expectedStatus,
                                            @RequestParam("targetStatus") Video.VideoStatus targetStatus);
+
+     @PutMapping("/video/api/private/processing/{videoId}/claim")
+     Result<Boolean> claimVideoProcessing(@PathVariable Long videoId);
 }

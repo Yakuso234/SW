@@ -2,6 +2,7 @@ package com.jiake.jk.video.controller._private;
 
 import com.jiake.jk.common.response.Result;
 import com.jiake.jk.video.service.VideoService;
+import com.jiake.jk.video.service.VideoProcessingTaskService;
 import com.jiake.jk.video.pojo.entity.Video;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,8 @@ public class VideoPrivateController {
 
     @Autowired
     private VideoService videoService;
+    @Autowired
+    private VideoProcessingTaskService videoProcessingTaskService;
 
     @PutMapping("/to-published/{videoId}")
     public Result<Void> putVideoStatusToPublished(@PathVariable Long videoId) {
@@ -30,6 +33,11 @@ public class VideoPrivateController {
                                                   @RequestParam("expectedStatus") Video.VideoStatus expectedStatus,
                                                   @RequestParam("targetStatus") Video.VideoStatus targetStatus) {
         return Result.success(videoService.transitionVideoStatus(videoId, expectedStatus, targetStatus));
+    }
+
+    @PutMapping("/processing/{videoId}/claim")
+    public Result<Boolean> claimVideoProcessing(@PathVariable Long videoId) {
+        return Result.success(videoProcessingTaskService.claimVideoProcessing(videoId));
     }
 
 }

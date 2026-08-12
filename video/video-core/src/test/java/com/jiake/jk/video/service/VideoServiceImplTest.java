@@ -11,9 +11,11 @@ import com.jiake.jk.video.mapper.VideoMapper;
 import com.jiake.jk.video.mapper.VideoTagMapper;
 import com.jiake.jk.video.mapper.VideoTagMpMapper;
 import com.jiake.jk.video.mapper.VideoUploadTaskMapper;
+import com.jiake.jk.video.mapper.VideoProcessingTaskMapper;
 import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.entity.VideoUploadTask;
+import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
@@ -47,6 +49,7 @@ class VideoServiceImplTest {
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "VideoServiceImplTest");
         TableInfoHelper.initTableInfo(assistant, Video.class);
         TableInfoHelper.initTableInfo(assistant, VideoUploadTask.class);
+        TableInfoHelper.initTableInfo(assistant, VideoProcessingTask.class);
     }
 
     @Mock private VideoMapper videoMapper;
@@ -54,6 +57,7 @@ class VideoServiceImplTest {
     @Mock private VideoTagMpMapper videoTagMpMapper;
     @Mock private VideoUploadTaskMapper videoUploadTaskMapper;
     @Mock private MessageOutBoxMapper messageOutBoxMapper;
+    @Mock private VideoProcessingTaskMapper videoProcessingTaskMapper;
     @Mock private AWSUtils awsUtils;
     @Mock private MultipartFile cover;
 
@@ -108,6 +112,9 @@ class VideoServiceImplTest {
         VideoReviewMessage message = objectMapper.readValue(outbox.getMessageBody(), VideoReviewMessage.class);
         assertEquals(videoId, message.getVideoId());
         assertEquals(video.getUrl(), message.getVideoUrl());
+        verify(videoProcessingTaskMapper).insert(argThat(task -> task.getVideoId().equals(videoId)
+                && task.getStatus() == VideoProcessingTask.ProcessingStatus.PENDING
+                && task.getRetryCount() == 0));
     }
 
     @Test
@@ -168,6 +175,7 @@ class VideoServiceImplTest {
         ReflectionTestUtils.setField(service, "videoTagMpMapper", videoTagMpMapper);
         ReflectionTestUtils.setField(service, "videoUploadTaskMapper", videoUploadTaskMapper);
         ReflectionTestUtils.setField(service, "messageOutBoxMapper", messageOutBoxMapper);
+        ReflectionTestUtils.setField(service, "videoProcessingTaskMapper", videoProcessingTaskMapper);
         ReflectionTestUtils.setField(service, "awsUtils", awsUtils);
         ReflectionTestUtils.setField(service, "objectMapper", objectMapper);
         return service;
