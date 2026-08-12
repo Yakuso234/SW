@@ -55,6 +55,22 @@ public class VideoPrivateController {
         return Result.success();
     }
 
+    /**
+     * 仅供内网运维入口读取。队列深度为 -1 表示 RabbitMQ 当前不可达或队列不存在。
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/processing/operations/overview")
+    public Result<VideoProcessingTaskService.ProcessingOperationsOverview> getProcessingOperationsOverview() {
+        return Result.success(videoProcessingTaskService.getProcessingOperationsOverview());
+    }
+
+    /**
+     * 仅允许恢复租约已过期且仍处于 PROCESSING 的任务；通过新 Outbox 投递，不直接重放 DLQ 原消息。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/processing/{videoId}/recover-expired")
+    public Result<Boolean> recoverExpiredProcessingTask(@PathVariable Long videoId) {
+        return Result.success(videoProcessingTaskService.recoverExpiredProcessingTask(videoId));
+    }
+
     public record VideoProcessingResultRequest(String processedVideoKey, String coverKey) { }
 
     public record VideoProcessingFailureRequest(String errorMessage) { }

@@ -20,6 +20,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 
 import java.util.List;
 
@@ -37,6 +38,7 @@ class VideoProcessingTaskServiceImplTest {
     @Mock private VideoMapper videoMapper;
     @Mock private MessageOutBoxMapper messageOutBoxMapper;
     @Mock private OutboxMessagePublisher outboxMessagePublisher;
+    @Mock private RabbitAdmin rabbitAdmin;
 
     @BeforeAll
     static void initializeMybatisPlusLambdaCache() {
@@ -56,7 +58,7 @@ class VideoProcessingTaskServiceImplTest {
     @Test
     void claimVideoProcessing_shouldClaimVideoAndTaskWithLease() {
         VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, new ObjectMapper(), outboxMessagePublisher);
+                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, new ObjectMapper(), outboxMessagePublisher, rabbitAdmin);
         when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
 
@@ -75,7 +77,7 @@ class VideoProcessingTaskServiceImplTest {
     @Test
     void recoverExpiredProcessingTasks_shouldResetTaskAndCreateRecoveryOutbox() {
         VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, new ObjectMapper(), outboxMessagePublisher);
+                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, new ObjectMapper(), outboxMessagePublisher, rabbitAdmin);
         VideoProcessingTask expiredTask = new VideoProcessingTask();
         expiredTask.setId(802L);
         expiredTask.setVideoId(902L);
@@ -103,5 +105,28 @@ class VideoProcessingTaskServiceImplTest {
         verify(messageOutBoxMapper).insert(outboxCaptor.capture());
         assertEquals(902L, outboxCaptor.getValue().getBusinessId());
         assertEquals(MessageOutbox.OutboxStatus.PENDING, outboxCaptor.getValue().getStatus());
+    }
+
+    @Test
+    void recoverExpiredProcessingTask_shouldRecoverOnlyAnExpiredLease() {
+        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
+                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, new ObjectMapper(), outboxMessagePublisher, rabbitAdmin);
+        VideoProcessingTask expiredTask = new VideoProcessingTask();
+        expiredTask.setId(803L);
+        expiredTask.setVideoId(903L);
+        Video video = new Video();
+        video.setId(903L);
+        video.setUrl("2026/08/recovery.mp4");
+        when(videoProcessingTaskMapper.selectOne(any())).thenReturn(expiredTask);
+        when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(videoMapper.selectById(903L)).thenReturn(video);
+        when(messageOutBoxMapper.insert(any(MessageOutbox.class))).thenReturn(1);
+        TransactionSynchronizationManager.initSynchronization();
+
+        assertTrue(service.recoverExpiredProcessingTask(903L));
+
+        verify(videoProcessingTaskMapper).selectOne(any());
+        verify(messageOutBoxMapper).insert(any(MessageOutbox.class));
     }
 }

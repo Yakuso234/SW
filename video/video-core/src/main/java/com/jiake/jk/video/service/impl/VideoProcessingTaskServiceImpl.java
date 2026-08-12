@@ -17,6 +17,8 @@ import com.jiake.jk.video.service.OutboxMessagePublisher;
 import com.jiake.jk.video.service.VideoProcessingTaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.QueueInformation;
+import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +41,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
     private final MessageOutBoxMapper messageOutBoxMapper;
     private final ObjectMapper objectMapper;
     private final OutboxMessagePublisher outboxMessagePublisher;
+    private final RabbitAdmin rabbitAdmin;
 
     @Override
     @Transactional
@@ -122,26 +125,60 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
                         .last("LIMIT " + RECOVERY_BATCH_SIZE));
         int recovered = 0;
         for (VideoProcessingTask task : expiredTasks) {
-            int reset = videoProcessingTaskMapper.update(new LambdaUpdateWrapper<VideoProcessingTask>()
-                    .set(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PENDING)
-                    .set(VideoProcessingTask::getLeaseExpireAt, null)
-                    .eq(VideoProcessingTask::getId, task.getId())
-                    .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)
-                    .le(VideoProcessingTask::getLeaseExpireAt, now));
-            if (reset == 0) {
-                continue;
+            if (recoverExpiredTask(task, now)) {
+                recovered++;
             }
-            int videoRestored = videoMapper.update(null, new LambdaUpdateWrapper<Video>()
-                    .set(Video::getStatus, Video.VideoStatus.PENDING_REVIEW)
-                    .eq(Video::getId, task.getVideoId())
-                    .eq(Video::getStatus, Video.VideoStatus.PROCESSING));
-            if (videoRestored != 1) {
-                throw new YHServerException("视频处理任务与视频状态不一致");
-            }
-            createRecoveryOutbox(task.getVideoId());
-            recovered++;
         }
         return recovered;
+    }
+
+    @Override
+    @Transactional
+    public boolean recoverExpiredProcessingTask(Long videoId) {
+        VideoProcessingTask task = videoProcessingTaskMapper.selectOne(
+                new LambdaQueryWrapper<VideoProcessingTask>()
+                        .select(VideoProcessingTask::getId, VideoProcessingTask::getVideoId)
+                        .eq(VideoProcessingTask::getVideoId, videoId)
+                        .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)
+                        .le(VideoProcessingTask::getLeaseExpireAt, LocalDateTime.now()));
+        return task != null && recoverExpiredTask(task, LocalDateTime.now());
+    }
+
+    @Override
+    public ProcessingOperationsOverview getProcessingOperationsOverview() {
+        return new ProcessingOperationsOverview(
+                getQueueMessageCount(RabbitMQConstant.VIDEO_REVIEW_QUEUE),
+                getQueueMessageCount(RabbitMQConstant.VIDEO_REVIEW_DEAD_QUEUE),
+                videoProcessingTaskMapper.selectCount(new LambdaQueryWrapper<VideoProcessingTask>()
+                        .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)),
+                videoProcessingTaskMapper.selectCount(new LambdaQueryWrapper<VideoProcessingTask>()
+                        .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.FAILED)));
+    }
+
+    private boolean recoverExpiredTask(VideoProcessingTask task, LocalDateTime now) {
+        int reset = videoProcessingTaskMapper.update(new LambdaUpdateWrapper<VideoProcessingTask>()
+                .set(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PENDING)
+                .set(VideoProcessingTask::getLeaseExpireAt, null)
+                .eq(VideoProcessingTask::getId, task.getId())
+                .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)
+                .le(VideoProcessingTask::getLeaseExpireAt, now));
+        if (reset == 0) {
+            return false;
+        }
+        int videoRestored = videoMapper.update(null, new LambdaUpdateWrapper<Video>()
+                .set(Video::getStatus, Video.VideoStatus.PENDING_REVIEW)
+                .eq(Video::getId, task.getVideoId())
+                .eq(Video::getStatus, Video.VideoStatus.PROCESSING));
+        if (videoRestored != 1) {
+            throw new YHServerException("视频处理任务与视频状态不一致");
+        }
+        createRecoveryOutbox(task.getVideoId());
+        return true;
+    }
+
+    private long getQueueMessageCount(String queueName) {
+        QueueInformation queueInformation = rabbitAdmin.getQueueInfo(queueName);
+        return queueInformation == null ? -1 : queueInformation.getMessageCount();
     }
 
     private void createRecoveryOutbox(Long videoId) {
