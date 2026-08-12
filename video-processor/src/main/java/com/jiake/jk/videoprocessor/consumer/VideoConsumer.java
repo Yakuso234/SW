@@ -30,24 +30,24 @@ public class VideoConsumer {
         }
         if (Boolean.TRUE.equals(result.getData())) {
             log.info("Video {} claimed by processor and moved to PROCESSING", videoReviewMessage.getVideoId());
+            VideoTranscodingService.TranscodingResult processed;
             try {
-                VideoTranscodingService.TranscodingResult processed = videoTranscodingService
+                processed = videoTranscodingService
                         .transcode(videoReviewMessage.getVideoId(), videoReviewMessage.getVideoUrl());
+            } catch (Exception exception) {
+                handleTranscodingFailure(videoReviewMessage.getVideoId(), exception);
+                return;
+            }
+
+            try {
                 Result<Void> completeResult = videoPrivateClient.completeVideoProcessing(videoReviewMessage.getVideoId(),
                         new VideoPrivateClient.VideoProcessingResultRequest(processed.processedVideoKey(), processed.coverKey()));
                 if (completeResult.isError()) {
                     throw new ResultCallbackUnavailableException("视频处理结果回写失败: " + completeResult.getMsg());
                 }
-            } catch (ResultCallbackUnavailableException exception) {
-                // 结果已落对象存储，但状态回写不可用：保留 PROCESSING 租约，由恢复任务通过 Outbox 重新入队。
-                throw new AmqpRejectAndDontRequeueException("处理结果回写暂不可用，等待租约恢复后重试", exception);
             } catch (Exception exception) {
-                Result<Void> failResult = videoPrivateClient.failVideoProcessing(videoReviewMessage.getVideoId(),
-                        new VideoPrivateClient.VideoProcessingFailureRequest(exception.getMessage()));
-                if (failResult.isError()) {
-                    throw new AmqpRejectAndDontRequeueException("视频失败结果回写失败，已转入死信队列: " + failResult.getMsg(), exception);
-                }
-                log.warn("Video {} processing failed and was marked REJECTED", videoReviewMessage.getVideoId(), exception);
+                // 已抢占且结果已产出时，任何完成回写异常均保留租约，交给恢复任务补偿。
+                throw new AmqpRejectAndDontRequeueException("处理结果回写暂不可用，等待租约恢复后重试", exception);
             }
         } else {
             log.info("Video {} is already claimed or no longer processable, skip duplicate message", videoReviewMessage.getVideoId());
@@ -57,6 +57,20 @@ public class VideoConsumer {
     private static class ResultCallbackUnavailableException extends RuntimeException {
         private ResultCallbackUnavailableException(String message) {
             super(message);
+        }
+    }
+
+    private void handleTranscodingFailure(Long videoId, Exception processingException) {
+        try {
+            Result<Void> failResult = videoPrivateClient.failVideoProcessing(videoId,
+                    new VideoPrivateClient.VideoProcessingFailureRequest(processingException.getMessage()));
+            if (failResult.isError()) {
+                throw new ResultCallbackUnavailableException("视频失败结果回写失败: " + failResult.getMsg());
+            }
+            log.warn("Video {} processing failed and was marked REJECTED", videoId, processingException);
+        } catch (Exception callbackException) {
+            // 转码失败本身可拒绝，但失败状态回写不可用时不能丢弃任务，应由租约恢复补偿。
+            throw new AmqpRejectAndDontRequeueException("视频失败结果回写暂不可用，等待租约恢复后重试", callbackException);
         }
     }
 }

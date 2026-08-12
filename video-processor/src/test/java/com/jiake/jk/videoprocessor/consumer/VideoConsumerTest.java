@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -54,5 +55,25 @@ class VideoConsumerTest {
                 () -> new VideoConsumer(client, transcodingService).handleVideoPostMessage(message));
 
         verify(client, never()).failVideoProcessing(eq(702L), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void shouldDeadLetterMessageWhenCompletionCallbackThrows() throws Exception {
+        VideoPrivateClient client = mock(VideoPrivateClient.class);
+        VideoTranscodingService transcodingService = mock(VideoTranscodingService.class);
+        when(client.claimVideoProcessing(703L)).thenReturn(Result.success(true));
+        when(transcodingService.transcode(703L, "2026/08/source.mp4"))
+                .thenReturn(new VideoTranscodingService.TranscodingResult("processed/703.mp4", "cover/703.jpg"));
+        doThrow(new IllegalStateException("connection refused"))
+                .when(client).completeVideoProcessing(eq(703L),
+                        eq(new VideoPrivateClient.VideoProcessingResultRequest("processed/703.mp4", "cover/703.jpg")));
+        VideoReviewMessage message = new VideoReviewMessage();
+        message.setVideoId(703L);
+        message.setVideoUrl("2026/08/source.mp4");
+
+        assertThrows(AmqpRejectAndDontRequeueException.class,
+                () -> new VideoConsumer(client, transcodingService).handleVideoPostMessage(message));
+
+        verify(client, never()).failVideoProcessing(eq(703L), org.mockito.ArgumentMatchers.any());
     }
 }
