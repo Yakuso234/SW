@@ -30,15 +30,11 @@ import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.response.*;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
 import com.jiake.jk.video.service.VideoService;
+import com.jiake.jk.video.service.OutboxMessagePublisher;
 import io.milvus.v2.client.MilvusClientV2;
 import io.milvus.v2.service.vector.request.SearchReq;
 import io.milvus.v2.service.vector.request.data.FloatVec;
 import io.milvus.v2.service.vector.response.SearchResp;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.core.MessageBuilder;
-import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -47,7 +43,6 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -65,7 +60,7 @@ public class VideoServiceImpl implements VideoService {
     @Autowired
     private VideoTagMpMapper videoTagMpMapper;
     @Autowired
-    private RabbitTemplate rabbitTemplate;
+    private OutboxMessagePublisher outboxMessagePublisher;
     @Autowired
     private SnowflakeUtils snowflakeUtils;
     @Autowired
@@ -386,6 +381,7 @@ public class VideoServiceImpl implements VideoService {
         // 插入本地消息表
         MessageOutbox messageOutbox = new MessageOutbox();
         messageOutbox.setBusinessId(video.getId());
+        messageOutbox.setExchangeName("");
         messageOutbox.setRoutingKey(RabbitMQConstant.VIDEO_REVIEW_QUEUE);
         messageOutbox.setMessageBody(objectMapper.writeValueAsString(videoReviewMessage));
         messageOutbox.setStatus(MessageOutbox.OutboxStatus.PENDING);
@@ -394,18 +390,9 @@ public class VideoServiceImpl implements VideoService {
         // 注册事务提交后发送消息
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
-                    final byte[] body = messageOutbox.getMessageBody().getBytes(StandardCharsets.UTF_8);
-
-                    final Message message = MessageBuilder.withBody(body)
-                            .setContentType(MessageProperties.CONTENT_TYPE_JSON)
-                            .setContentEncoding("UTF-8")
-                            .build();
-
                     @Override
                     public void afterCommit() {
-                        rabbitTemplate.send("", RabbitMQConstant.VIDEO_REVIEW_QUEUE,
-                                message,
-                                new CorrelationData(messageOutbox.getId().toString()));
+                        outboxMessagePublisher.publish(messageOutbox.getId());
                     }
                 }
         );

@@ -1,9 +1,6 @@
 package com.jiake.jk.video.config;
 
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.jiake.jk.video.constant.RabbitMQConstant;
-import com.jiake.jk.video.mapper.MessageOutBoxMapper;
-import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.core.MessageProperties;
@@ -38,28 +35,13 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(CachingConnectionFactory connectionFactory, MessageOutBoxMapper messageOutBoxMapper, MessageConverter messageConverter) {
+    public RabbitTemplate rabbitTemplate(CachingConnectionFactory connectionFactory, MessageConverter messageConverter) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
 
         rabbitTemplate.setMessageConverter(messageConverter);
 
         // 设置强制执行退回回调
         rabbitTemplate.setMandatory(true);
-
-        // Publish Confirm
-        rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
-            if (correlationData == null) return;
-
-            if (ack) {
-                messageOutBoxMapper.update(new LambdaUpdateWrapper<MessageOutbox>()
-                        .set(MessageOutbox::getStatus, MessageOutbox.OutboxStatus.SUCCESS)
-                        .eq(MessageOutbox::getId, correlationData.getId()));
-            }
-        });
-
-        // Publish Return
-        rabbitTemplate.setReturnsCallback(returned -> {
-        });
 
         return rabbitTemplate;
     }

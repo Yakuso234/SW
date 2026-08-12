@@ -73,7 +73,9 @@ public class MessageOutbox {
     public enum OutboxStatus {
         PENDING(0, "待发送"),
         SUCCESS(1, "发送成功"),
-        FAILED(2, "发送失败");
+        FAILED(2, "等待重试"),
+        SENDING(3, "发送中"),
+        DEAD(4, "超过重试上限");
 
         @EnumValue
         private final int code;
