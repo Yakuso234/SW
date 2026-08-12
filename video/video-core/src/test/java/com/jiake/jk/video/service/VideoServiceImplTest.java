@@ -134,6 +134,33 @@ class VideoServiceImplTest {
         verify(awsUtils).presignUploadPart(eq(task.getKey()), eq(task.getUploadId()), eq(List.of(1)), any());
     }
 
+    @Test
+    void transitionVideoStatus_shouldUseExpectedStatusAsConcurrencyGuard() {
+        VideoServiceImpl service = newService();
+        when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        assertTrue(service.transitionVideoStatus(505L, Video.VideoStatus.PENDING_REVIEW, Video.VideoStatus.PROCESSING));
+
+        ArgumentCaptor<LambdaUpdateWrapper<Video>> updateCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(videoMapper).update(isNull(), updateCaptor.capture());
+        assertTrue(updateCaptor.getValue().getSqlSegment().contains("id"));
+        assertTrue(updateCaptor.getValue().getSqlSegment().contains("status"));
+        assertTrue(updateCaptor.getValue().getParamNameValuePairs().containsValue(Video.VideoStatus.PROCESSING));
+    }
+
+    @Test
+    void putVideoStatusToPublished_shouldRequireProcessingStatus() {
+        VideoServiceImpl service = newService();
+        when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        service.putVideoStatusToPublished(506L);
+
+        ArgumentCaptor<LambdaUpdateWrapper<Video>> updateCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(videoMapper).update(isNull(), updateCaptor.capture());
+        assertTrue(updateCaptor.getValue().getParamNameValuePairs().containsValue(Video.VideoStatus.PUBLISHED));
+        assertTrue(updateCaptor.getValue().getSqlSegment().contains("status"));
+    }
+
     private VideoServiceImpl newService() {
         VideoServiceImpl service = new VideoServiceImpl();
         ReflectionTestUtils.setField(service, "videoMapper", videoMapper);

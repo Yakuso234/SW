@@ -4,6 +4,7 @@ import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.request.DeletePublishedVideoRequest;
 import com.jiake.jk.video.pojo.response.*;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
+import com.jiake.jk.video.pojo.entity.Video;
 
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,8 @@ public interface VideoService {
     void postVideoMessage(Long userId, PostVideoMessageRequest postVideoMessageRequest) throws Exception;
 
     void putVideoStatusToPublished(Long videoId);
+
+    boolean transitionVideoStatus(Long videoId, Video.VideoStatus expectedStatus, Video.VideoStatus targetStatus);
 
     List<GetUploadedVideoResponse> getUploadedVideo(Long userId);
 

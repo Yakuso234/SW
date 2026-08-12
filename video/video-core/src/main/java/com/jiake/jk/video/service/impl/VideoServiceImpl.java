@@ -447,7 +447,28 @@ public class VideoServiceImpl implements VideoService {
 
     @Override
     public void putVideoStatusToPublished(Long videoId) {
-        videoTagMapper.updateStatus(videoId, Video.VideoStatus.PUBLISHED);
+        transitionVideoStatus(videoId, Video.VideoStatus.PROCESSING, Video.VideoStatus.PUBLISHED);
+    }
+
+    @Override
+    public boolean transitionVideoStatus(Long videoId, Video.VideoStatus expectedStatus, Video.VideoStatus targetStatus) {
+        if (!isAllowedTransition(expectedStatus, targetStatus)) {
+            throw new YHClientException("非法的视频状态迁移");
+        }
+        return videoMapper.update(null, new LambdaUpdateWrapper<Video>()
+                .set(Video::getStatus, targetStatus)
+                .eq(Video::getId, videoId)
+                .eq(Video::getStatus, expectedStatus)) == 1;
+    }
+
+    private boolean isAllowedTransition(Video.VideoStatus expectedStatus, Video.VideoStatus targetStatus) {
+        return (expectedStatus == Video.VideoStatus.PENDING_REVIEW
+                && (targetStatus == Video.VideoStatus.REVIEWING || targetStatus == Video.VideoStatus.PROCESSING
+                || targetStatus == Video.VideoStatus.REJECTED))
+                || (expectedStatus == Video.VideoStatus.REVIEWING
+                && (targetStatus == Video.VideoStatus.PROCESSING || targetStatus == Video.VideoStatus.REJECTED))
+                || (expectedStatus == Video.VideoStatus.PROCESSING
+                && (targetStatus == Video.VideoStatus.PUBLISHED || targetStatus == Video.VideoStatus.REJECTED));
     }
 
     @Override
