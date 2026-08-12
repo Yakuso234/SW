@@ -9,6 +9,7 @@ import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -18,6 +19,7 @@ import software.amazon.awssdk.services.s3.presigner.model.*;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -81,6 +83,22 @@ public class AWSUtils {
                 request,
                 RequestBody.fromInputStream(file.getInputStream(), file.getSize())
         );
+    }
+
+    /** 用于异步处理服务上传本地生成的转码文件或封面。 */
+    public void putObject(String key, Path file, String contentType) {
+        client.putObject(PutObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(key)
+                        .contentType(contentType)
+                        .build(),
+                RequestBody.fromFile(file));
+    }
+
+    /** 将对象下载到本地工作目录，避免将完整视频加载到 JVM 内存。 */
+    public void downloadObject(String key, Path destination) {
+        client.getObject(GetObjectRequest.builder().bucket(bucket).key(key).build(),
+                ResponseTransformer.toFile(destination));
     }
 
     /**

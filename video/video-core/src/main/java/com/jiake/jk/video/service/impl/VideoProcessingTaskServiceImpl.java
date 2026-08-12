@@ -65,6 +65,51 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
 
     @Override
     @Transactional
+    public void completeVideoProcessing(Long videoId, String processedVideoKey, String coverKey) {
+        int taskCompleted = videoProcessingTaskMapper.update(new LambdaUpdateWrapper<VideoProcessingTask>()
+                .set(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.SUCCEEDED)
+                .set(VideoProcessingTask::getLeaseExpireAt, null)
+                .set(VideoProcessingTask::getErrorMessage, null)
+                .eq(VideoProcessingTask::getVideoId, videoId)
+                .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING));
+        if (taskCompleted != 1) {
+            throw new YHServerException("视频处理任务已不处于处理中");
+        }
+        int videoPublished = videoMapper.update(null, new LambdaUpdateWrapper<Video>()
+                .set(Video::getUrl, processedVideoKey)
+                .set(Video::getCoverUrl, coverKey)
+                .set(Video::getStatus, Video.VideoStatus.PUBLISHED)
+                .eq(Video::getId, videoId)
+                .eq(Video::getStatus, Video.VideoStatus.PROCESSING));
+        if (videoPublished != 1) {
+            throw new YHServerException("视频状态已变化，拒绝写入处理结果");
+        }
+    }
+
+    @Override
+    @Transactional
+    public void failVideoProcessing(Long videoId, String errorMessage) {
+        String safeMessage = errorMessage == null ? "未知处理失败" : errorMessage.substring(0, Math.min(errorMessage.length(), 512));
+        int taskFailed = videoProcessingTaskMapper.update(new LambdaUpdateWrapper<VideoProcessingTask>()
+                .set(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.FAILED)
+                .set(VideoProcessingTask::getLeaseExpireAt, null)
+                .set(VideoProcessingTask::getErrorMessage, safeMessage)
+                .eq(VideoProcessingTask::getVideoId, videoId)
+                .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING));
+        if (taskFailed != 1) {
+            throw new YHServerException("视频处理任务已不处于处理中");
+        }
+        int videoRejected = videoMapper.update(null, new LambdaUpdateWrapper<Video>()
+                .set(Video::getStatus, Video.VideoStatus.REJECTED)
+                .eq(Video::getId, videoId)
+                .eq(Video::getStatus, Video.VideoStatus.PROCESSING));
+        if (videoRejected != 1) {
+            throw new YHServerException("视频状态已变化，拒绝写入失败结果");
+        }
+    }
+
+    @Override
+    @Transactional
     @Scheduled(fixedDelayString = "${sw.video-processing.recovery-delay-ms:60000}")
     public int recoverExpiredProcessingTasks() {
         LocalDateTime now = LocalDateTime.now();

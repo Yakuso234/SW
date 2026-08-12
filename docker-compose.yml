@@ -93,12 +93,11 @@ services:
     restart: on-failure
 
   video-processor:
-    image: eclipse-temurin:21-jre
+    build:
+      context: ./video-processor
+      dockerfile: Dockerfile
     profiles: [app]
     depends_on: [mysql, redis, rabbitmq, nacos]
-    command: java -jar /app/video-processor-0.0.1-SNAPSHOT.jar
-    volumes:
-      - ./video-processor/target/video-processor-0.0.1-SNAPSHOT.jar:/app/video-processor-0.0.1-SNAPSHOT.jar:ro
     environment: *app-env
     restart: on-failure
 

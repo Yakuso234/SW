@@ -18,4 +18,16 @@ public interface VideoPrivateClient {
 
      @PutMapping("/video/api/private/processing/{videoId}/claim")
      Result<Boolean> claimVideoProcessing(@PathVariable Long videoId);
+
+     @PutMapping("/video/api/private/processing/{videoId}/complete")
+     Result<Void> completeVideoProcessing(@PathVariable Long videoId,
+                                          @RequestBody VideoProcessingResultRequest request);
+
+     @PutMapping("/video/api/private/processing/{videoId}/fail")
+     Result<Void> failVideoProcessing(@PathVariable Long videoId,
+                                      @RequestBody VideoProcessingFailureRequest request);
+
+     record VideoProcessingResultRequest(String processedVideoKey, String coverKey) { }
+
+     record VideoProcessingFailureRequest(String errorMessage) { }
 }

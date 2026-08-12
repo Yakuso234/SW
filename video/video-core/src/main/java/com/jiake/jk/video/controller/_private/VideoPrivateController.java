@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "VideoPrivate")
@@ -39,5 +40,23 @@ public class VideoPrivateController {
     public Result<Boolean> claimVideoProcessing(@PathVariable Long videoId) {
         return Result.success(videoProcessingTaskService.claimVideoProcessing(videoId));
     }
+
+    @PutMapping("/processing/{videoId}/complete")
+    public Result<Void> completeVideoProcessing(@PathVariable Long videoId,
+                                                @RequestBody VideoProcessingResultRequest request) {
+        videoProcessingTaskService.completeVideoProcessing(videoId, request.processedVideoKey(), request.coverKey());
+        return Result.success();
+    }
+
+    @PutMapping("/processing/{videoId}/fail")
+    public Result<Void> failVideoProcessing(@PathVariable Long videoId,
+                                            @RequestBody VideoProcessingFailureRequest request) {
+        videoProcessingTaskService.failVideoProcessing(videoId, request.errorMessage());
+        return Result.success();
+    }
+
+    public record VideoProcessingResultRequest(String processedVideoKey, String coverKey) { }
+
+    public record VideoProcessingFailureRequest(String errorMessage) { }
 
 }
