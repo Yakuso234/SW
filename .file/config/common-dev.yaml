@@ -1,0 +1,77 @@
+server:
+  tomcat:
+    threads:
+      max: 5
+      min-spare: 2
+    max-connections: 50
+
+jwt:
+  sign-key: yxyyxhyh
+  expire: 66666666
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 5000MB
+      max-request-size: 7000MB
+  mvc:
+    servlet:
+      path: /api
+  datasource:
+    url: jdbc:mysql://mysql/yh?allowMultiQueries=true
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      keep-alive: true
+      test-while-idle: true
+      min-idle: 1
+      validation-query: select 1
+      time-between-eviction-runs-millis: 20000
+  cloud:
+    sentinel:
+      transport:
+        dashboard: sentinel:10085  # Sentinel控制台地址
+        port: 8719  # 与控制台交互的端口（默认为8719）
+    openfeign:
+      httpclient:
+        enabled: true # 开启 Feign 对 httpClient 的支持
+  data:
+    redis:
+      host: redis
+      port: 6379
+      password: ${REDIS_PASSWORD}
+  rabbitmq:
+    host: rabbitmq
+    port: 5672
+    virtual-host: /
+    username: ${MQ_USERNAME}
+    password: ${MQ_PASSWORD}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+  elasticsearch:
+    uris: http://es:9200
+    connection-timeout: 5s
+    socket-timeout: 60s
+    socket-keep-alive: true
+      
+seata:
+  registry:
+    type: nacos
+    nacos:
+      server-addr: nacos:8848
+      namespace: ""
+      group: SEATA_GROUP
+      application: seataServer
+      username: ${NACOS_USERNAME}
+      password: ${NACOS_PASSWORD}
+  data-source-proxy-mode: AT
+  tx-service-group: yx # 事务组名称
+  service:
+    vgroup-mapping: # 事务组与tc集群的映射关系
+      yx: "default"
+
+logging:
+  level:
+    org.springframework.jdbc.support.JdbcTransactionManager: debug

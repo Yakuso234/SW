@@ -1,0 +1,14 @@
+package com.jiake.jk.chat.entity.multi;
+
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
+public class RecentContact {
+    Long conversationId;
+    Long contactId;
+    String lastMessage;
+    Integer unreadCount;
+    LocalDateTime updatedTime;
+}

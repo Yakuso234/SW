@@ -1,0 +1,28 @@
+package com.jiake.jk.admin.controller;
+
+import com.jiake.jk.admin.request.LoginRequest;
+import com.jiake.jk.admin.service.AuthService;
+import com.jiake.jk.common.response.Result;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.coyote.BadRequestException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "Auth")
+@RestController
+@RequestMapping("/auth")
+public class AuthController {
+
+    @Autowired
+    private AuthService authService;
+
+    @Operation(summary = "登录")
+    @PostMapping("/login")
+    public Result<String> login(@RequestBody LoginRequest loginRequest) throws BadRequestException {
+        return Result.success(authService.login(loginRequest));
+    }
+}

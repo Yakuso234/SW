@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jiake.jk.video.mapper.VideoMapper">
+
+    <update id="updateLikeBatch">
+        <foreach collection="likeIncrList" item="likeIncr" separator=";">
+            update video set likes = likes + #{likeIncr.incrNumber} where id = #{likeIncr.videoId}
+        </foreach>
+    </update>
+
+    <update id="updateFavoriteBatch">
+        <foreach collection="favoriteIncrList" item="favoriteIncr" separator=";">
+            update video set favorites = favorites + #{favoriteIncr.incrNumber} where id = #{favoriteIncr.videoId}
+        </foreach>
+    </update>
+
+    <update id="updateCommentBatch">
+        <foreach collection="commentIncrList" item="commentIncr" separator=";">
+            update video set comments = comments + #{commentIncr.incrNumber} where id = #{commentIncr.videoId}
+        </foreach>
+    </update>
+
+    <select id="selectPublishedVideoByUserId" resultType="com.jiake.jk.video.pojo.entity.Video">
+        select id,
+        url,
+        cover_url,
+        description,
+        likes,
+        comments,
+        favorites,
+        created_at
+        from video
+        where creator_id = #{userId}
+        and status = 5
+        <if test="lastMinId != null">
+            and id &lt; #{lastMinId}
+        </if>
+        order by id desc
+        limit 10;
+    </select>
+
+    <select id="selectProcessingVideoByUserId" resultType="com.jiake.jk.video.pojo.entity.Video">
+        select id,
+        url,
+        cover_url,
+        description,
+        likes,
+        comments,
+        favorites,
+        created_at
+        from video
+        where creator_id = #{userId}
+        and status = 'PROCESSING'
+        <if test="lastMinId != null">
+            and id &lt; #{lastMinId}
+        </if>
+        order by id desc
+        limit 10
+    </select>
+
+    <select id="selectRejectedVideoByUserId" resultType="com.jiake.jk.video.pojo.entity.Video">
+        select id,
+        url,
+        cover_url,
+        description,
+        likes,
+        comments,
+        favorites,
+        created_at
+        from video
+        where creator_id = #{userId}
+        and status = 'REJECTED'
+        <if test="lastMinId != null">
+            and id &lt; #{lastMinId}
+        </if>
+        order by id desc
+        limit 10
+    </select>
+
+    <select id="selectLikeVideoByUserId" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithLike">
+        select l.id as like_id, video.id as video_id, creator_id, url, cover_url, description, likes
+        from video
+        join
+        (
+        select id, video_id
+        from video_user_like
+        where user_id = #{userId}
+          and status = 'FRONT'
+        <if test="lastMinId != null">
+            and id &lt; #{lastMinId}
+        </if>
+        order by id desc
+        limit 10
+        ) l
+        on video.id = l.video_id
+        order by l.id desc
+    </select>
+
+    <select id="selectFavoriteVideoByUserId" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithFavorite">
+        select f.id as favorite_id, video.id as video_id, creator_id, url, cover_url, description, favorites
+        from video
+        join
+        (
+        select id, video_id
+        from video_user_favorite
+        where user_id = #{userId}
+        <if test="lastMinId != null">
+            and id &lt; #{lastMinId}
+        </if>
+        order by id desc
+        limit 10
+        ) f
+        on video.id = f.video_id
+        order by f.id desc
+    </select>
+
+    <select id="searchPublishedVideoByDescriptionPrefix" resultType="com.jiake.jk.video.pojo.response.VideoSearchResponse">
+        select id as video_id,
+               creator_id,
+               description,
+               cover_url,
+               likes
+        from video
+        where status = 5
+          and description like concat(#{keyword}, '%')
+        order by id desc
+    </select>
+
+</mapper>

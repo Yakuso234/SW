@@ -1,0 +1,26 @@
+server:
+  port: 10094
+
+spring:
+  application:
+    name: aiService
+  profiles:
+    active: dev
+  webflux:
+    base-path: /ai/api
+  cloud:
+    nacos:
+      username: nacos
+      password: nacos
+      server-addr: nacos:8848
+      config:
+        namespace: dev
+      discovery:
+        namespace: ${spring.cloud.nacos.config.namespace}
+  config:
+    import:
+      - nacos:common-dev.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - nacos:ai-dev.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+logging:
+  level:
+    org.springframework.ai: DEBUG

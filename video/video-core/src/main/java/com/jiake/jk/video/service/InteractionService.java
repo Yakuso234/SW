@@ -1,0 +1,29 @@
+package com.jiake.jk.video.service;
+
+import com.jiake.jk.video.pojo.request.PostCommentRequest;
+import com.jiake.jk.video.pojo.request.VideoInteractionBatchRequest;
+import com.jiake.jk.video.pojo.response.GetDirectCommentResponse;
+import com.jiake.jk.video.pojo.response.GetReplyCommentResponse;
+import org.apache.coyote.BadRequestException;
+
+import java.util.List;
+
+public interface InteractionService {
+    void like(Long userId, Long videoId) throws Exception;
+
+    void unlike(Long userId, Long videoId) throws Exception;
+
+    void favorite(Long userId, Long videoId) throws Exception;
+
+    void unfavorite(Long userId, Long videoId) throws Exception;
+
+    void likeBatch(VideoInteractionBatchRequest videoInteractionBatchRequest);
+
+    void favoriteBatch(VideoInteractionBatchRequest videoInteractionBatchRequest);
+
+    String comment(Long videoId, Long userId, PostCommentRequest postCommentRequest) throws BadRequestException;
+
+    List<GetDirectCommentResponse> directComment(Long videoId, Long lastMinId);
+
+    List<GetReplyCommentResponse> replyComment(Long commentId, Long lastMaxId);
+}

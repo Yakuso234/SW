@@ -1,0 +1,52 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Local secrets and runtime artifacts ###
+.env
+.env.*
+!.env.example
+*.log
+hs_err_pid*.log
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.pem
+
+### Local project continuity notes ###
+/PROJECT_MEMORY.md
+/.git-upstream-backup/
+/.git-personal-bootstrap/
+
+### Unused legacy showcase assets ###
+/.file/*.png

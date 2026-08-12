@@ -1,0 +1,153 @@
+package com.jiake.jk.product.controller;
+
+import com.jiake.jk.common.response.Result;
+import com.jiake.jk.common.utils.UserContext;
+import com.jiake.jk.product.pojo.request.DeleteSkuSpecRequest;
+import com.jiake.jk.product.pojo.request.PostSkuCarouselRequest;
+import com.jiake.jk.product.pojo.request.PostSkuSpecRequest;
+import com.jiake.jk.product.pojo.request.PutProductBasicInfoRequest;
+import com.jiake.jk.product.pojo.request.PutProductStatusRequest;
+import com.jiake.jk.product.pojo.request.PutSkuMainRequest;
+import com.jiake.jk.product.pojo.request.PutSkuRequest;
+import com.jiake.jk.product.pojo.response.GetOnSaleProductForLiveResponse;
+import com.jiake.jk.product.pojo.response.MerchantProductStatsResponse;
+import com.jiake.jk.product.pojo.response.ProductEditResponse;
+import com.jiake.jk.product.pojo.response.ProductManageItemResponse;
+import com.jiake.jk.product.service.MerchantService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.apache.coyote.BadRequestException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.io.IOException;
+import java.util.List;
+
+@Tag(name = "Merchant")
+@RestController
+@RequestMapping("/me/merchant")
+public class MerchantController {
+
+    @Autowired
+    private MerchantService merchantService;
+
+    @Operation(summary = "修改商品状态")
+    @PutMapping("/status/{productId}")
+    public Result<Void> putMerchantProductStatus(@PathVariable Long productId, @RequestBody PutProductStatusRequest putProductStatusRequest) {
+        merchantService.putMerchantProductStatus(productId, putProductStatusRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "获取自己店铺的商品（不区分状态）")
+    @GetMapping
+    public Result<List<ProductManageItemResponse>> getMerchantProduct() {
+        return Result.success(merchantService.getMerchantProduct(UserContext.getUser()));
+    }
+
+    @Operation(summary = "获取自己店铺的商品统计数据")
+    @GetMapping("/stats")
+    public Result<MerchantProductStatsResponse> getMerchantProductStats() {
+        return Result.success(merchantService.getMerchantProductStats(UserContext.getUser()));
+    }
+
+    @Operation(summary = "获取商家已上架商品列表（用于直播间选品）")
+    @GetMapping("/on-sale")
+    public Result<List<GetOnSaleProductForLiveResponse>> getMerchantOnSaleProductForLive() {
+        return Result.success(merchantService.getMerchantOnSaleProductForLive(UserContext.getUser()));
+    }
+
+    @Operation(summary = "获取商品编辑信息")
+    @GetMapping("/edit/{productId}")
+    public Result<ProductEditResponse> getMerchantProductEditData(@PathVariable Long productId) {
+        return Result.success(merchantService.getMerchantProductEditData(productId));
+    }
+
+    @Operation(summary = "获取上传视频的预签名URL（编辑器）")
+    @GetMapping("/edit/upload-video/presigned-url")
+    public Result<String> getEditUploadVideoPresignedUrl() {
+        return Result.success(merchantService.getEditUploadVideoPresignedUrl(UserContext.getUser()));
+    }
+
+    @Operation(summary = "获取上传图片的预签名URL（编辑器）")
+    @GetMapping("/edit/upload-image/presigned-url")
+    public Result<String> getEditUploadImagePresignedUrl() {
+        return Result.success(merchantService.getEditUploadImagePresignedUrl(UserContext.getUser()));
+    }
+
+    @Operation(summary = "新增店铺商品")
+    @PostMapping
+    public Result<Void> postMerchantProduct(@ModelAttribute PutProductBasicInfoRequest putProductBasicInfoRequest) throws IOException {
+        merchantService.postMerchantProduct(UserContext.getUser(), putProductBasicInfoRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "修改店铺商品的基本信息")
+    @PutMapping("/{productId}")
+    public Result<Void> putMerchantProductBasicInfo(@PathVariable Long productId, @ModelAttribute PutProductBasicInfoRequest putProductBasicInfoRequest) throws IOException {
+        merchantService.putMerchantProductBasicInfo(productId, putProductBasicInfoRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "删除店铺商品")
+    @DeleteMapping("/{productId}")
+    public Result<Void> deleteMerchantProduct(@PathVariable Long productId) {
+        merchantService.deleteMerchantProduct(productId);
+        return Result.success();
+    }
+
+    @Operation(summary = "新增商品规格对")
+    @PostMapping("/sku/spec")
+    public Result<Void> postSkuSpec(@RequestBody PostSkuSpecRequest postSkuSpecRequest) {
+        merchantService.postSkuSpec(postSkuSpecRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "删除商品规格对")
+    @DeleteMapping("/sku/spec/{productId}")
+    public Result<Void> deleteSkuSpec(@PathVariable Long productId, @RequestBody DeleteSkuSpecRequest deleteSkuSpecRequest) {
+        merchantService.deleteSkuSpec(productId, deleteSkuSpecRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "设置主规格")
+    @PutMapping("/sku/main/{productId}")
+    public Result<Void> putSkuMain(@PathVariable Long productId, @RequestBody PutSkuMainRequest putSkuMainRequest) {
+        merchantService.putSkuMain(productId, putSkuMainRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "修改SKU信息")
+    @PutMapping("/sku")
+    public Result<Void> putSku(@RequestBody PutSkuRequest putSkuRequest) throws BadRequestException {
+        merchantService.putSku(UserContext.getUser(), putSkuRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "SKU新增轮播图")
+    @PostMapping("/sku/carousel/{skuId}")
+    public Result<Void> postSkuCarousel(@PathVariable Long skuId, @ModelAttribute PostSkuCarouselRequest postSkuCarouselRequest) throws IOException {
+        merchantService.postSkuCarousel(skuId, postSkuCarouselRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "SKU删除轮播图")
+    @DeleteMapping("/sku/carousel/{carouselId}")
+    public Result<Void> deleteSkuCarousel(@PathVariable Long carouselId) {
+        merchantService.deleteSkuCarousel(carouselId);
+        return Result.success();
+    }
+
+    @Operation(summary = "根据SKU获取轮播图URL列表")
+    @GetMapping("/sku/carousels/{skuId}")
+    public Result<List<String>> getSkuCarousels(@PathVariable Long skuId) {
+        return Result.success(merchantService.getSkuCarousels(skuId));
+    }
+}

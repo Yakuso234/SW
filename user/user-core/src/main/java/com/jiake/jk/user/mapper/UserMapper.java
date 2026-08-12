@@ -1,0 +1,56 @@
+package com.jiake.jk.user.mapper;
+
+import com.jiake.jk.user.pojo.entity.User;
+import com.jiake.jk.user.pojo.request.ProfileRequest;
+import com.jiake.jk.user.pojo.response.ProfileResponse;
+import com.jiake.jk.user.pojo.response.UserSearchResponse;
+import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
+
+import java.util.List;
+
+@Mapper
+public interface UserMapper {
+    @Insert("insert into user (id, phone_number, name, encoded_password) values (#{id}, #{phoneNumber}, #{name}, #{encodedPassword})")
+    void insertToRegister(User user);
+
+    @Select("select id, encoded_password from user where phone_number = #{phoneNumber}")
+    User selectIdAndPassword(String phoneNumber);
+
+    @Select("select count(*) from user where phone_number = #{phoneNumber}")
+    boolean selectIsPhoneNumberExist(String phoneNumber);
+
+    @Select("select name, avatar_url, bio from user where id = #{userId}")
+    User selectProfile(Long userId);
+
+    @Select("select name, avatar_url from user where id = #{userId}")
+    User selectProfileBasic(Long userId);
+
+    @Update("update user set avatar_url = #{newAvatarUrl} where id = #{userId}")
+    void updateAvatarUrl(Long userId, String newAvatarUrl);
+
+    @Update("update user set name = #{profileRequest.name}, bio = #{profileRequest.bio} where id = #{userId}")
+    void update(Long userId, ProfileRequest profileRequest);
+
+    @Select("select name from user where id = #{id}")
+    String selectNameById(String id);
+
+    List<User> selectNameByIdList(List<Long> idList);
+
+    List<User> selectUserInfoInList(List<Long> idList);
+
+    @Select("""
+            select u.id,
+                   u.name,
+                   u.avatar_url,
+                   u.bio,
+                   (select count(*) from user_follow uf where uf.followee_id = u.id) AS follower_count,
+                   CASE WHEN f.id IS NOT NULL THEN true ELSE false END AS is_followed
+            from user u
+            left join user_follow f on f.follower_id = #{userId} and f.followee_id = u.id
+            where u.name like CONCAT(#{query}, '%')
+            """)
+    List<UserSearchResponse> selectUserByNamePrefix(Long userId, String query);
+}

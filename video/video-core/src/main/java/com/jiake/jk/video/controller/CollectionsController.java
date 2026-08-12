@@ -1,0 +1,80 @@
+package com.jiake.jk.video.controller;
+
+import com.jiake.jk.common.response.Result;
+import com.jiake.jk.common.utils.UserContext;
+import com.jiake.jk.video.pojo.request.DeleteCollectionsItemRequest;
+import com.jiake.jk.video.pojo.response.GetCollectionsItemResponse;
+import com.jiake.jk.video.pojo.request.PostCollectionsRequest;
+import com.jiake.jk.video.pojo.request.PutCollectionsRequest;
+import com.jiake.jk.video.pojo.request.TransferCollectionsItemRequest;
+import com.jiake.jk.video.pojo.response.GetCollectionsResponse;
+import com.jiake.jk.video.service.CollectionsService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Tag(name = "Collections")
+@RestController
+@RequestMapping("/me/collections")
+@RequiredArgsConstructor
+public class CollectionsController {
+
+    private final CollectionsService collectionsService;
+
+    @Operation(summary = "获取收藏夹")
+    @GetMapping
+    public Result<List<GetCollectionsResponse>> getCollections(@RequestParam(required = false) Long lastMinId) {
+        return Result.success(collectionsService.getCollections(UserContext.getUser(), lastMinId));
+    }
+
+    @Operation(summary = "获取收藏夹中的视频")
+    @GetMapping("/item/{collectionsId}")
+    public Result<List<GetCollectionsItemResponse>> getCollectionsItemList(@PathVariable Long collectionsId, @RequestParam(required = false) Long lastMinId) {
+        return Result.success(collectionsService.getCollectionsItemList(UserContext.getUser(), collectionsId, lastMinId));
+    }
+
+    @Operation(summary = "创建收藏夹")
+    @PostMapping
+    public Result<String> postCollections(@RequestBody PostCollectionsRequest postCollectionsRequest) {
+        return Result.success(collectionsService.postCollections(UserContext.getUser(), postCollectionsRequest));
+    }
+
+    @Operation(summary = "修改收藏夹")
+    @PutMapping("/{collectionsId}")
+    public Result<Void> putCollections(@PathVariable Long collectionsId, @RequestBody PutCollectionsRequest putCollectionsRequest) {
+        collectionsService.putCollections(UserContext.getUser(), collectionsId, putCollectionsRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "删除收藏夹")
+    @DeleteMapping("/{collectionsId}")
+    public Result<Void> deleteCollections(@PathVariable Long collectionsId) {
+        collectionsService.deleteCollections(UserContext.getUser(), collectionsId);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量删除收藏夹项")
+    @DeleteMapping("/item")
+    public Result<Void> deleteCollectionsItemBatch(@RequestBody DeleteCollectionsItemRequest deleteCollectionsItemRequest) {
+        collectionsService.deleteCollectionsItemBatch(UserContext.getUser(), deleteCollectionsItemRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量移动收藏夹项")
+    @PutMapping("/item/move")
+    public Result<Void> moveCollectionsItemBatch(@RequestBody TransferCollectionsItemRequest transferCollectionsItemRequest) {
+        collectionsService.moveCollectionsItemBatch(UserContext.getUser(), transferCollectionsItemRequest);
+        return Result.success();
+    }
+
+    @Operation(summary = "批量复制收藏夹项")
+    @PostMapping("/item/copy")
+    public Result<Void> copyCollectionsItemBatch(@RequestBody TransferCollectionsItemRequest transferCollectionsItemRequest) {
+        collectionsService.copyCollectionsItemBatch(UserContext.getUser(), transferCollectionsItemRequest);
+        return Result.success();
+    }
+
+}

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jiake.jk.product.mapper.ProductSkuMapper">
+
+    <insert id="insertBatch">
+        insert into product_sku (sku_id, product_id) values
+        <foreach collection="skuIdList" item="skuId" separator=",">
+            (#{skuId}, #{productId})
+        </foreach>
+    </insert>
+
+    <update id="update">
+        <foreach collection="productSkuList" item="productSku" separator=";">
+            update product_sku set price = #{productSku.price}, stock = #{productSku.stock} where sku_id = #{productSku.skuId}
+        </foreach>
+    </update>
+
+    <delete id="deleteBatch">
+        delete from product_sku where sku_id in
+            <foreach collection="skuIdList" item="skuId" open="(" close=")" separator=",">
+                #{skuId}
+            </foreach>
+    </delete>
+
+    <select id="selectPartOfCartItem" resultType="com.jiake.jk.product.pojo.model.entity.ProductSku">
+        select sku_id, price, stock from product_sku where sku_id in
+            <foreach collection="skuIdList" item="skuId" open="(" close=")" separator=",">
+                #{skuId}
+            </foreach>
+    </select>
+</mapper>

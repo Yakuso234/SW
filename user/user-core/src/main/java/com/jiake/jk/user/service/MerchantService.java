@@ -1,0 +1,18 @@
+package com.jiake.jk.user.service;
+
+import com.jiake.jk.user.pojo.request.PostMerchantRequest;
+import com.jiake.jk.user.pojo.request.PutMerchantRequest;
+import com.jiake.jk.user.pojo.response.MerchantBasicDataResponse;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+
+public interface MerchantService {
+    void postMerchant(Long userId, PostMerchantRequest postMerchantRequest) throws IOException;
+
+    MerchantBasicDataResponse getBasicMerchant(Long userId);
+
+    void putMerchant(Long userId, PutMerchantRequest putMerchantRequest) throws IOException;
+
+    String postAvatar(Long userId, MultipartFile avatar) throws IOException;
+}

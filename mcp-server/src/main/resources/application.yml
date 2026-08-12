@@ -1,0 +1,18 @@
+server:
+  port: 11111
+spring:
+  application:
+    name: mcpService
+  cloud:
+    nacos:
+      server-addr: nacos:8848
+      username: nacos
+      password: nacos
+      discovery:
+        namespace: dev
+      config:
+        namespace: dev
+  config:
+    import:
+      - nacos:common-dev.yaml?group=DEFAULT_GROUP&refreshEnabled=true
+      - nacos:mcp-dev.yaml?group=DEFAULT_GROUP&refreshEnabled=true

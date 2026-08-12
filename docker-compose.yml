@@ -1,0 +1,107 @@
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+    command: --default-authentication-plugin=mysql_native_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./.file/sql/yh.sql:/docker-entrypoint-initdb.d/01-yh.sql:ro
+
+  redis:
+    image: redis:7.2-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${MQ_USERNAME:?请在 .env 中设置 MQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${MQ_PASSWORD:?请在 .env 中设置 MQ_PASSWORD}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  minio:
+    image: minio/minio:RELEASE.2024-05-28T17-19-04Z
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?请在 .env 中设置 MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?请在 .env 中设置 MINIO_SECRET_KEY}
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  nacos:
+    image: nacos/nacos-server:v2.5.0
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+
+  gateway:
+    image: eclipse-temurin:21-jre
+    profiles: [app]
+    depends_on: [nacos]
+    command: java -jar /app/gateway-0.0.1-SNAPSHOT.jar
+    ports:
+      - "8080:10086"
+    volumes:
+      - ./gateway/target/gateway-0.0.1-SNAPSHOT.jar:/app/gateway-0.0.1-SNAPSHOT.jar:ro
+    environment: &app-env
+      MYSQL_USERNAME: ${MYSQL_USERNAME:?请在 .env 中设置 MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
+      MQ_USERNAME: ${MQ_USERNAME:?请在 .env 中设置 MQ_USERNAME}
+      MQ_PASSWORD: ${MQ_PASSWORD:?请在 .env 中设置 MQ_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?请在 .env 中设置 MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?请在 .env 中设置 MINIO_SECRET_KEY}
+      NACOS_USERNAME: ${NACOS_USERNAME:?请在 .env 中设置 NACOS_USERNAME}
+      NACOS_PASSWORD: ${NACOS_PASSWORD:?请在 .env 中设置 NACOS_PASSWORD}
+      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:?请在 .env 中设置 XXL_JOB_ACCESS_TOKEN}
+    restart: on-failure
+
+  user-service:
+    image: eclipse-temurin:21-jre
+    profiles: [app]
+    depends_on: [mysql, redis, nacos, minio]
+    command: java -jar /app/user-core-0.0.1-SNAPSHOT.jar
+    ports:
+      - "8081:10088"
+    volumes:
+      - ./user/user-core/target/user-core-0.0.1-SNAPSHOT.jar:/app/user-core-0.0.1-SNAPSHOT.jar:ro
+    environment: *app-env
+    restart: on-failure
+
+  video-service:
+    image: eclipse-temurin:21-jre
+    profiles: [app]
+    depends_on: [mysql, redis, rabbitmq, nacos, minio]
+    command: java -jar /app/video-0.0.1-SNAPSHOT.jar
+    ports:
+      - "8082:10091"
+    volumes:
+      - ./video/video-core/target/video-0.0.1-SNAPSHOT.jar:/app/video-0.0.1-SNAPSHOT.jar:ro
+    environment: *app-env
+    restart: on-failure
+
+  video-processor:
+    image: eclipse-temurin:21-jre
+    profiles: [app]
+    depends_on: [mysql, redis, rabbitmq, nacos]
+    command: java -jar /app/video-processor-0.0.1-SNAPSHOT.jar
+    volumes:
+      - ./video-processor/target/video-processor-0.0.1-SNAPSHOT.jar:/app/video-processor-0.0.1-SNAPSHOT.jar:ro
+    environment: *app-env
+    restart: on-failure
+
+volumes:
+  mysql-data:
+  minio-data:

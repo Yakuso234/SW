@@ -1,0 +1,9 @@
+package com.jiake.jk.admin.request;
+
+import lombok.Data;
+
+@Data
+public class LoginRequest {
+    String name;
+    String password;
+}

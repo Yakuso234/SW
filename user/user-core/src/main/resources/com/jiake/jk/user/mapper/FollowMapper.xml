@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jiake.jk.user.mapper.FollowMapper">
+
+    <select id="selectFollowStatusBatch" resultType="java.lang.Boolean">
+        select exists(
+            select 1
+            from user_follow uf
+            where uf.follower_id = #{followerId}
+              and uf.followee_id = t.followee_id
+        )
+        from (
+            <foreach collection="followeeIdList" item="followeeId" separator=" union all ">
+                select #{followeeId} as followee_id
+            </foreach>
+        ) t
+    </select>
+</mapper>

@@ -1,0 +1,12 @@
+package com.jiake.jk.product.pojo.model.multi;
+
+import lombok.Data;
+
+@Data
+public class ProductPartOfCartItem {
+    Long productId;
+    Long merchantId;
+    String merchantName;
+    String title;
+    String coverUrl;
+}
