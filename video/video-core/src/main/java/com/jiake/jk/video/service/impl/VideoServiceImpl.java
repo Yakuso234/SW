@@ -257,7 +257,9 @@ public class VideoServiceImpl implements VideoService {
         }
 
         videoUploadTaskMapper.update(new LambdaUpdateWrapper<VideoUploadTask>()
-                .set(VideoUploadTask::getExpireAt, LocalDateTime.now().plusMinutes(10)));
+                .set(VideoUploadTask::getExpireAt, LocalDateTime.now().plusMinutes(10))
+                .eq(VideoUploadTask::getId, videoUploadTask.getId())
+                .eq(VideoUploadTask::getStatus, VideoUploadTask.UploadStatus.UPLOADING));
 
         return awsUtils.presignUploadPart(videoUploadTask.getKey(), videoUploadTask.getUploadId(), getPresignUrlRequest.getPartNumberList(), Duration.ofMinutes(10));
     }
@@ -343,7 +345,7 @@ public class VideoServiceImpl implements VideoService {
     public void postVideoMessage(Long userId, PostVideoMessageRequest postVideoMessageRequest) throws IOException {
         /* 获取所需视频数据 */
         Video video = videoMapper.selectOne(new LambdaQueryWrapper<Video>()
-                .select(Video::getCreatorId, Video::getUrl, Video::getStatus)
+                .select(Video::getId, Video::getCreatorId, Video::getUrl, Video::getStatus)
                 .eq(Video::getId, postVideoMessageRequest.getVideoId()));
 
         /* 校验 */
@@ -357,7 +359,7 @@ public class VideoServiceImpl implements VideoService {
         /* 乐观锁 */
         String coverObjectKey = "cover/" + postVideoMessageRequest.getVideoId().toString();
         int result = videoMapper.update(null, new LambdaUpdateWrapper<Video>()
-                .set(Video::getStatus, Video.VideoStatus.PUBLISHED) // 临时跳过审核，直接发布
+                .set(Video::getStatus, Video.VideoStatus.PENDING_REVIEW)
                 .set(Video::getCoverUrl, coverObjectKey)
                 .set(Video::getDescription, postVideoMessageRequest.getDescription())
                 .eq(Video::getId, postVideoMessageRequest.getVideoId())
