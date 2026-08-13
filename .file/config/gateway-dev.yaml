@@ -44,6 +44,21 @@ gateway:
             - /*/api/public/**
             - /admin/**
             - /*/v3/api-docs/**
+    rate-limit:
+        enabled: true
+        window-seconds: 60
+        ip-limit: 120
+        user-limit: 60
+        route-limit: 300
+        protected-methods:
+            - POST
+            - PUT
+            - PATCH
+            - DELETE
+        protected-path-prefixes:
+            - /ai/
+        route-limits:
+            aiService1: 30
 
 logging:
   level:
