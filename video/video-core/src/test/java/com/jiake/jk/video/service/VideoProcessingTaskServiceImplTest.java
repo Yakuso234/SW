@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -128,5 +129,21 @@ class VideoProcessingTaskServiceImplTest {
 
         verify(videoProcessingTaskMapper).selectOne(any());
         verify(messageOutBoxMapper).insert(any(MessageOutbox.class));
+    }
+
+    @Test
+    void completeVideoProcessing_shouldPersistPublishedAtWithPublishedStatus() {
+        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
+                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, new ObjectMapper(), outboxMessagePublisher, rabbitAdmin);
+        when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        service.completeVideoProcessing(904L, "processed/904.mp4", "processed/904.jpg");
+
+        ArgumentCaptor<LambdaUpdateWrapper<Video>> videoCaptor = ArgumentCaptor.forClass(LambdaUpdateWrapper.class);
+        verify(videoMapper, times(1)).update(isNull(), videoCaptor.capture());
+        assertTrue(videoCaptor.getValue().getParamNameValuePairs()
+                .containsValue(Video.VideoStatus.PUBLISHED));
+        assertTrue(videoCaptor.getValue().getSqlSet().contains("published_at"));
     }
 }

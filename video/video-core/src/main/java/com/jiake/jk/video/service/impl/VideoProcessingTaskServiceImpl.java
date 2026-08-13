@@ -83,6 +83,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
                 .set(Video::getUrl, processedVideoKey)
                 .set(Video::getCoverUrl, coverKey)
                 .set(Video::getStatus, Video.VideoStatus.PUBLISHED)
+                .set(Video::getPublishedAt, LocalDateTime.now())
                 .eq(Video::getId, videoId)
                 .eq(Video::getStatus, Video.VideoStatus.PROCESSING));
         if (videoPublished != 1) {
