@@ -1,4 +1,4 @@
-create database yh;
+create database if not exists yh;
 use yh;
 
 

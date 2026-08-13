@@ -3,6 +3,9 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: yh
+      MYSQL_USER: ${MYSQL_USERNAME:?请在 .env 中设置 MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
     command: --default-authentication-plugin=mysql_native_password
     ports:
       - "3306:3306"
@@ -57,7 +60,7 @@ services:
       - ./gateway/target/gateway-0.0.1-SNAPSHOT.jar:/app/gateway-0.0.1-SNAPSHOT.jar:ro
     environment: &app-env
       MYSQL_USERNAME: ${MYSQL_USERNAME:?请在 .env 中设置 MYSQL_USERNAME}
-      MYSQL_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 中设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 中设置 MYSQL_PASSWORD}
       REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env 中设置 REDIS_PASSWORD}
       MQ_USERNAME: ${MQ_USERNAME:?请在 .env 中设置 MQ_USERNAME}
       MQ_PASSWORD: ${MQ_PASSWORD:?请在 .env 中设置 MQ_PASSWORD}
