@@ -1,9 +1,10 @@
 param(
     [string]$VideoServiceUrl = 'http://localhost:10091/video/api',
-    [string]$MysqlContainer = 'yh-mysql-1',
+    [string]$MysqlContainer = 'sw-mysql-1',
     [string]$MysqlPassword,
     [string]$FfmpegPath,
-    [int]$TimeoutSeconds = 120
+    [int]$TimeoutSeconds = 120,
+    [string]$TraceId = ("sw-e2e-" + [Guid]::NewGuid().ToString('N'))
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,7 +54,7 @@ try {
         throw 'Test cover generation failed.'
     }
 
-    $headers = @{ id = '900001' }
+    $headers = @{ id = '900001'; 'X-Trace-Id' = $TraceId }
     $presign = Invoke-RestMethod -Uri "$VideoServiceUrl/me/presign-put-object" -Method Post -Headers $headers -TimeoutSec 20
     if ($presign.code -ne 1 -or $null -eq $presign.data) {
         throw 'Presign API did not return a valid task.'
@@ -67,7 +68,7 @@ try {
     }
 
     $videoId = [string]$completed.data.videoId
-    $submitResult = & curl.exe --silent --show-error --fail-with-body -X POST "$VideoServiceUrl/me" -H 'id: 900001' -F "videoId=$videoId" -F 'description=SW automated end-to-end verification video' -F 'addedTagList=sw-e2e' -F "cover=@$cover;type=image/jpeg"
+    $submitResult = & curl.exe --silent --show-error --fail-with-body -X POST "$VideoServiceUrl/me" -H 'id: 900001' -H "X-Trace-Id: $TraceId" -F "videoId=$videoId" -F 'description=SW automated end-to-end verification video' -F 'addedTagList=sw-e2e' -F "cover=@$cover;type=image/jpeg"
     if ($LASTEXITCODE -ne 0) {
         throw 'Video submit request failed.'
     }
@@ -79,6 +80,7 @@ try {
             [PSCustomObject]@{
                 VideoId = $videoId
                 UploadTaskId = $taskId
+                TraceId = $TraceId
                 VideoStatus = 'PUBLISHED'
                 ProcessingTaskStatus = 'SUCCEEDED'
                 OutboxStatus = 'SUCCESS'
