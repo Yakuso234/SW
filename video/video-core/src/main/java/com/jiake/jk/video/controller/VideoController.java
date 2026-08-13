@@ -7,6 +7,7 @@ import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.response.*;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
 import com.jiake.jk.video.service.VideoService;
+import com.jiake.jk.video.service.FollowFeedService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,6 +23,15 @@ public class VideoController {
 
     @Autowired
     private VideoService videoService;
+    @Autowired
+    private FollowFeedService followFeedService;
+
+    @Operation(summary = "获取我关注创作者的收件箱 Feed")
+    @GetMapping("/follow-feed")
+    public Result<FollowFeedResponse> getFollowFeed(@RequestParam(required = false) String cursor,
+                                                     @RequestParam(required = false) Integer pageSize) {
+        return Result.success(followFeedService.getFollowFeed(UserContext.getUser(), cursor, pageSize));
+    }
 
     @Operation(summary = "初始化分片上传")
     @PostMapping("/start-upload-part")

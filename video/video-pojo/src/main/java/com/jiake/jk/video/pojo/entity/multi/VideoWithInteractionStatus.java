@@ -20,4 +20,5 @@ public class VideoWithInteractionStatus {
     private Boolean isLike;
     private Boolean isFavorite;
     private LocalDateTime publishedAt;
+    private Long feedId;
 }

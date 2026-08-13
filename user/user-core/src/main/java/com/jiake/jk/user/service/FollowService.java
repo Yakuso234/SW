@@ -2,6 +2,7 @@ package com.jiake.jk.user.service;
 
 import com.jiake.jk.user.pojo.response.UserFriendResponse;
 import com.jiake.jk.user.pojo.response.FollowListResponse;
+import com.jiake.jk.user.pojo.response.FollowerIdPageResponse;
 import org.apache.coyote.BadRequestException;
 
 import java.util.List;
@@ -18,4 +19,6 @@ public interface FollowService {
     FollowListResponse getFollowingList(Long userId, Long lastId);
 
     FollowListResponse getFollowerList(Long userId, Long lastId);
+
+    FollowerIdPageResponse getFollowerIdPage(Long followeeId, Long lastFollowId, int pageSize);
 }

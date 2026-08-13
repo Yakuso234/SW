@@ -441,6 +441,21 @@ create index video_creator_id_status_id_index
 create index idx_video_status_published_at_id
     on video (status asc, published_at desc, id desc);
 
+create table video_feed_inbox
+(
+    id           bigint unsigned not null primary key,
+    recipient_id bigint unsigned not null,
+    video_id     bigint unsigned not null,
+    creator_id   bigint unsigned not null,
+    published_at datetime        not null,
+    created_at   datetime        null,
+    constraint uk_video_feed_inbox_recipient_video unique (recipient_id, video_id)
+)
+    charset = utf8mb3;
+
+create index idx_video_feed_inbox_recipient_published_id
+    on video_feed_inbox (recipient_id asc, published_at desc, id desc);
+
 create table video_tag
 (
     id           bigint                             not null

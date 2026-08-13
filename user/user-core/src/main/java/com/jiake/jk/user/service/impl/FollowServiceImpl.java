@@ -11,6 +11,7 @@ import com.jiake.jk.user.pojo.entity.UserFollow;
 import com.jiake.jk.user.pojo.entity.UserFriend;
 import com.jiake.jk.user.pojo.entity.UserNewFriendMessage;
 import com.jiake.jk.user.pojo.response.FollowListResponse;
+import com.jiake.jk.user.pojo.response.FollowerIdPageResponse;
 import com.jiake.jk.user.pojo.response.FollowUserResponse;
 import com.jiake.jk.user.pojo.response.UserFriendResponse;
 import com.jiake.jk.user.service.FollowService;
@@ -138,6 +139,26 @@ public class FollowServiceImpl implements FollowService {
     @Override
     public FollowListResponse getFollowerList(Long userId, Long lastId) {
         return getFollowList(followMapper.selectFollowerPage(userId, lastId));
+    }
+
+    @Override
+    public FollowerIdPageResponse getFollowerIdPage(Long followeeId, Long lastFollowId, int pageSize) {
+        int limit = Math.min(Math.max(pageSize, 1), 500) + 1;
+        LambdaQueryWrapper<UserFollow> query = new LambdaQueryWrapper<UserFollow>()
+                .select(UserFollow::getId, UserFollow::getFollowerId)
+                .eq(UserFollow::getFolloweeId, followeeId)
+                .orderByDesc(UserFollow::getId)
+                .last("LIMIT " + limit);
+        if (lastFollowId != null) {
+            query.lt(UserFollow::getId, lastFollowId);
+        }
+        List<UserFollow> rows = followMapper.selectList(query);
+        boolean hasMore = rows.size() == limit;
+        if (hasMore) {
+            rows = rows.subList(0, limit - 1);
+        }
+        Long nextFollowId = hasMore ? rows.get(rows.size() - 1).getId() : null;
+        return new FollowerIdPageResponse(rows.stream().map(UserFollow::getFollowerId).toList(), nextFollowId, hasMore);
     }
 
     private FollowListResponse getFollowList(List<FollowUserResponse> list) {

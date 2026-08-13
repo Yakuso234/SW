@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.jiake.jk.video.mapper.VideoFeedInboxMapper">
+    <insert id="insertIgnoreBatch">
+        INSERT IGNORE INTO video_feed_inbox (id, recipient_id, video_id, creator_id, published_at, created_at)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.id}, #{item.recipientId}, #{item.videoId}, #{item.creatorId}, #{item.publishedAt}, NOW())
+        </foreach>
+    </insert>
+</mapper>

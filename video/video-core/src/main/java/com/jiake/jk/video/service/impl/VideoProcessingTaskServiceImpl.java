@@ -89,6 +89,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
         if (videoPublished != 1) {
             throw new YHServerException("视频状态已变化，拒绝写入处理结果");
         }
+        createPublishedInboxOutbox(videoId);
     }
 
     @Override
@@ -211,6 +212,38 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
             });
         } catch (JsonProcessingException exception) {
             throw new YHServerException("序列化视频恢复消息失败");
+        }
+    }
+
+    private void createPublishedInboxOutbox(Long videoId) {
+        try {
+            Video video = videoMapper.selectById(videoId);
+            if (video == null || video.getPublishedAt() == null) {
+                throw new YHServerException("已发布视频不存在或缺少发布时间");
+            }
+            com.jiake.jk.video.pojo.mq.VideoPublishedMessage message =
+                    new com.jiake.jk.video.pojo.mq.VideoPublishedMessage();
+            message.setVideoId(videoId);
+            message.setCreatorId(video.getCreatorId());
+            message.setPublishedAt(video.getPublishedAt());
+            message.setTraceId(TraceContext.getOrCreateTraceId());
+
+            MessageOutbox outbox = new MessageOutbox();
+            outbox.setBusinessId(videoId);
+            outbox.setExchangeName("");
+            outbox.setRoutingKey(RabbitMQConstant.VIDEO_PUBLISH_INBOX_QUEUE);
+            outbox.setMessageBody(objectMapper.writeValueAsString(message));
+            outbox.setStatus(MessageOutbox.OutboxStatus.PENDING);
+            outbox.setRetryCount(0);
+            messageOutBoxMapper.insert(outbox);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    outboxMessagePublisher.publish(outbox.getId());
+                }
+            });
+        } catch (JsonProcessingException exception) {
+            throw new YHServerException("发布关注流事件序列化失败");
         }
     }
 }

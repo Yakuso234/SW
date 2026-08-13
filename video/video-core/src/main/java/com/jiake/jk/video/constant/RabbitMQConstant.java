@@ -7,6 +7,9 @@ public class RabbitMQConstant {
     public final static String VIDEO_REVIEW_QUEUE = "video.review.queue";
     public final static String VIDEO_REVIEW_DEAD_QUEUE = "video.review.dead.queue";
 
+    public final static String VIDEO_PUBLISH_INBOX_QUEUE = "video.publish.inbox.queue";
+    public final static String VIDEO_PUBLISH_INBOX_DEAD_QUEUE = "video.publish.inbox.dead.queue";
+
     /**
      * Interaction
      */

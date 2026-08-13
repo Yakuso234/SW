@@ -59,4 +59,26 @@
         ORDER BY v.published_at DESC, v.id DESC
         LIMIT #{limit}
     </select>
+
+    <select id="selectFollowFeed" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
+        SELECT i.id AS feed_id, v.id, v.creator_id, v.url, v.description, v.likes, v.comments, v.favorites,
+               v.published_at,
+               IF(vul.user_id IS NOT NULL, 1, 0) AS is_like,
+               IF(vuf.user_id IS NOT NULL, 1, 0) AS is_favorite
+        FROM video_feed_inbox i
+        INNER JOIN video v ON v.id = i.video_id AND v.status = 5
+        LEFT JOIN video_user_like vul ON (
+            v.id = vul.video_id AND vul.user_id = #{recipientId} AND vul.status = 'FRONT'
+        )
+        LEFT JOIN video_user_collections_item vuf ON (
+            v.id = vuf.video_id AND vuf.user_id = #{recipientId}
+        )
+        WHERE i.recipient_id = #{recipientId}
+        <if test="publishedAt != null">
+            AND (i.published_at &lt; #{publishedAt}
+                OR (i.published_at = #{publishedAt} AND i.id &lt; #{feedId}))
+        </if>
+        ORDER BY i.published_at DESC, i.id DESC
+        LIMIT #{limit}
+    </select>
 </mapper>

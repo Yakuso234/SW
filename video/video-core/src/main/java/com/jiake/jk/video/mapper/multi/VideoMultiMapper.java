@@ -18,4 +18,9 @@ public interface VideoMultiMapper {
                                                          @Param("publishedAt") LocalDateTime publishedAt,
                                                          @Param("videoId") Long videoId,
                                                          @Param("limit") int limit);
+
+    List<VideoWithInteractionStatus> selectFollowFeed(@Param("recipientId") Long recipientId,
+                                                       @Param("publishedAt") LocalDateTime publishedAt,
+                                                       @Param("feedId") Long feedId,
+                                                       @Param("limit") int limit);
 }
