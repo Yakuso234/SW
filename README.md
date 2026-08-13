@@ -168,6 +168,17 @@ POST /video/api/private/processing/{videoId}/recover-expired
 
 所有 Servlet 请求会读取或生成 `X-Trace-Id`，并在响应头回传；Feign 调用自动透传该请求头。视频发布消息会把 TraceId 写入 Outbox 消息体，Processor 消费时恢复同一 TraceId 后再调用 Video Service。因此可使用响应头中的 TraceId 串联上传提交、Outbox、Processor 和处理结果回写日志。
 
+### 指标与健康检查
+
+Video Service 与 Video Processor 已引入 Actuator 和 Prometheus registry。导入最新 `common-dev.yaml` 并重启两个服务后，可访问：
+
+```text
+GET /video/api/actuator/health
+GET /video/api/actuator/prometheus
+```
+
+业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds` 和 `sw_video_transcoding_failures_total`。本次仅完成代码与单元测试验证；Prometheus 抓取配置、Grafana 面板和现场指标采样留待下一步。
+
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
 ## 近期里程碑

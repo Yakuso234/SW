@@ -75,3 +75,12 @@ seata:
 logging:
   level:
     org.springframework.jdbc.support.JdbcTransactionManager: debug
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: when_authorized

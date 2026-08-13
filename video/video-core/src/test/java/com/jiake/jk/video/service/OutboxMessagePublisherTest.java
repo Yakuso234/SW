@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.time.LocalDateTime;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class OutboxMessagePublisherTest {
 
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
     @Mock private MessageOutBoxMapper messageOutBoxMapper;
     @Mock private RabbitTemplate rabbitTemplate;
 
@@ -37,7 +40,7 @@ class OutboxMessagePublisherTest {
 
     @Test
     void publish_shouldClaimMessageBeforeSendingIt() {
-        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate);
+        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate, meterRegistry);
         MessageOutbox outbox = new MessageOutbox();
         outbox.setId(501L);
         outbox.setExchangeName("");
@@ -58,7 +61,7 @@ class OutboxMessagePublisherTest {
 
     @Test
     void markRetryOrDead_shouldUseBackoffAfterBrokerFailure() {
-        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate);
+        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate, meterRegistry);
         MessageOutbox outbox = new MessageOutbox();
         outbox.setId(502L);
         outbox.setStatus(MessageOutbox.OutboxStatus.SENDING);
@@ -76,11 +79,12 @@ class OutboxMessagePublisherTest {
                 .filter(LocalDateTime.class::isInstance)
                 .map(LocalDateTime.class::cast)
                 .anyMatch(time -> !time.isBefore(before.plusSeconds(4))));
+        assertEquals(1.0, meterRegistry.get("sw.outbox.delivery.failures").counter().count());
     }
 
     @Test
     void markSuccess_shouldOnlyCompleteAClaimedMessage() {
-        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate);
+        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate, meterRegistry);
         when(messageOutBoxMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         publisher.markSuccess(504L);
@@ -93,7 +97,7 @@ class OutboxMessagePublisherTest {
 
     @Test
     void markRetryOrDead_shouldStopAtRetryLimit() {
-        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate);
+        OutboxMessagePublisher publisher = new OutboxMessagePublisher(messageOutBoxMapper, rabbitTemplate, meterRegistry);
         MessageOutbox outbox = new MessageOutbox();
         outbox.setId(503L);
         outbox.setStatus(MessageOutbox.OutboxStatus.SENDING);

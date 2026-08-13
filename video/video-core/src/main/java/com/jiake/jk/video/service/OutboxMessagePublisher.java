@@ -6,6 +6,9 @@ import com.jiake.jk.video.mapper.MessageOutBoxMapper;
 import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageProperties;
@@ -29,10 +32,19 @@ public class OutboxMessagePublisher {
     private static final int BATCH_SIZE = 100;
     private final MessageOutBoxMapper messageOutBoxMapper;
     private final RabbitTemplate rabbitTemplate;
+    private final Timer deliveryTimer;
+    private final Counter deliveryFailureCounter;
 
-    public OutboxMessagePublisher(MessageOutBoxMapper messageOutBoxMapper, RabbitTemplate rabbitTemplate) {
+    public OutboxMessagePublisher(MessageOutBoxMapper messageOutBoxMapper, RabbitTemplate rabbitTemplate,
+                                  MeterRegistry meterRegistry) {
         this.messageOutBoxMapper = messageOutBoxMapper;
         this.rabbitTemplate = rabbitTemplate;
+        this.deliveryTimer = Timer.builder("sw.outbox.delivery")
+                .description("Outbox message delivery attempt duration")
+                .register(meterRegistry);
+        this.deliveryFailureCounter = Counter.builder("sw.outbox.delivery.failures")
+                .description("Outbox delivery failures")
+                .register(meterRegistry);
     }
 
     @PostConstruct
@@ -73,13 +85,15 @@ public class OutboxMessagePublisher {
             return;
         }
         try {
-            Message message = MessageBuilder.withBody(outbox.getMessageBody().getBytes(StandardCharsets.UTF_8))
-                    .setContentType(MessageProperties.CONTENT_TYPE_JSON)
-                    .setContentEncoding(StandardCharsets.UTF_8.name())
-                    .setHeader("x-outbox-id", outboxId.toString())
-                    .build();
-            rabbitTemplate.send(outbox.getExchangeName() == null ? "" : outbox.getExchangeName(),
-                    outbox.getRoutingKey(), message, new CorrelationData(outboxId.toString()));
+            deliveryTimer.record(() -> {
+                Message message = MessageBuilder.withBody(outbox.getMessageBody().getBytes(StandardCharsets.UTF_8))
+                        .setContentType(MessageProperties.CONTENT_TYPE_JSON)
+                        .setContentEncoding(StandardCharsets.UTF_8.name())
+                        .setHeader("x-outbox-id", outboxId.toString())
+                        .build();
+                rabbitTemplate.send(outbox.getExchangeName() == null ? "" : outbox.getExchangeName(),
+                        outbox.getRoutingKey(), message, new CorrelationData(outboxId.toString()));
+            });
         } catch (RuntimeException exception) {
             markRetryOrDead(outboxId, exception.getMessage());
         }
@@ -122,6 +136,7 @@ public class OutboxMessagePublisher {
                 .eq(MessageOutbox::getId, outboxId)
                 .eq(MessageOutbox::getStatus, MessageOutbox.OutboxStatus.SENDING));
         if (updated == 1) {
+            deliveryFailureCounter.increment();
             log.warn("Outbox message {} delivery failed, status={}, reason={}", outboxId, nextStatus, reason);
         }
     }

@@ -1,6 +1,9 @@
 package com.jiake.jk.videoprocessor.service;
 
 import com.jiake.jk.common.utils.AWSUtils;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 public class FfmpegVideoTranscodingService implements VideoTranscodingService {
 
     private final AWSUtils awsUtils;
+    private final MeterRegistry meterRegistry;
 
     @Value("${sw.video-processing.ffmpeg-command:ffmpeg}")
     private String ffmpegCommand;
@@ -31,6 +35,7 @@ public class FfmpegVideoTranscodingService implements VideoTranscodingService {
 
     @Override
     public TranscodingResult transcode(Long videoId, String sourceObjectKey) throws Exception {
+        Timer.Sample timerSample = Timer.start(meterRegistry);
         Path workDir = Files.createTempDirectory("sw-video-" + videoId + "-");
         try {
             Path source = workDir.resolve("source.mp4");
@@ -46,7 +51,16 @@ public class FfmpegVideoTranscodingService implements VideoTranscodingService {
             awsUtils.putObject(processedKey, processed, "video/mp4");
             awsUtils.putObject(coverKey, cover, "image/jpeg");
             return new TranscodingResult(processedKey, coverKey);
+        } catch (Exception exception) {
+            Counter.builder("sw.video.transcoding.failures")
+                    .description("Video transcoding failures")
+                    .register(meterRegistry)
+                    .increment();
+            throw exception;
         } finally {
+            timerSample.stop(Timer.builder("sw.video.transcoding")
+                    .description("Video transcoding end-to-end duration")
+                    .register(meterRegistry));
             deleteWorkDir(workDir);
         }
     }
