@@ -3,6 +3,7 @@ package com.jiake.jk.ai.filter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiake.jk.common.utils.JwtUtils;
+import com.jiake.jk.common.trace.TraceContext;
 import io.jsonwebtoken.Claims;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -51,9 +52,14 @@ public class UserIdentifierWebFilter implements WebFilter {
 
         if (idString != null) {
             Long id = Long.valueOf(idString);
+            String traceId = exchange.getRequest().getHeaders().getFirst(TraceContext.TRACE_ID_HEADER);
+            if (traceId != null && !traceId.isBlank()) {
+                exchange.getResponse().getHeaders().set(TraceContext.TRACE_ID_HEADER, traceId);
+            }
             // 将ID存储到响应式上下文
             return chain.filter(exchange)
-                    .contextWrite(ctx -> ctx.put("userId", id));
+                    .contextWrite(ctx -> ctx.put("userId", id).put(TraceContext.TRACE_ID_KEY,
+                            traceId == null ? "" : traceId));
         }
 
         return chain.filter(exchange);

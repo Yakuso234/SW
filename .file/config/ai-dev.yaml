@@ -41,5 +41,11 @@ spring:
             server1:
               url: http://127.0.0.1:11111/
               # url: http://mcpService
+sw:
+  ai:
+    creator-assistant:
+      enabled: true
+      stream-timeout-seconds: 45
+      max-message-length: 1500
         toolcallback:
           enabled: true

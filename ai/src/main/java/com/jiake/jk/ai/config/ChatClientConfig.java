@@ -44,4 +44,12 @@ public class ChatClientConfig {
                 .defaultAdvisors(new SimpleLoggerAdvisor())
                 .build();
     }
+
+    /** The new SW creator assistant intentionally starts without legacy memory tools. */
+    @Bean
+    public ChatClient creatorAssistantChatClient(ChatClient.Builder chatClientBuilder) {
+        return chatClientBuilder
+                .defaultAdvisors(new SimpleLoggerAdvisor())
+                .build();
+    }
 }
