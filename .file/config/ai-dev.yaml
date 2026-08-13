@@ -1,6 +1,6 @@
 spring:
   r2dbc:
-    url: r2dbc:mysql://mysql:3306/yh
+    url: ${AI_R2DBC_URL:r2dbc:mysql://localhost:3306/yh}
     username: ${MYSQL_USERNAME}
     password: ${MYSQL_PASSWORD}
     pool:
@@ -9,13 +9,18 @@ spring:
       max-size: 5
       validation-query: SELECT 1
       max-idle-time: 30000
+  data:
+    redis:
+      host: ${AI_REDIS_HOST:localhost}
+      port: ${AI_REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
   ai:
     openai:
       api-key: ${OPENAI_API_KEY}
       base-url: https://dashscope.aliyuncs.com/compatible-mode/
       chat:
         options:
-          model: deepseek-v3.2-exp
+          model: ${AI_CHAT_MODEL:qwen-plus}
           temperature: 0.8
         completions-path: /chat/completions
       embedding:
@@ -24,28 +29,15 @@ spring:
           # model: qwen3-embedding:4b
           dimensions: 768
     vectorstore:
-      milvus:
-        client:
-          host: milvus
-          port: 19530
-        collection-name: yh_rag_collection
-        initialize-schema: true
-        embedding-dimension: 768
-        index-type: IVF_FLAT
-        metric-type: L2
+      type: none
     mcp:
       client:
-        type: ASYNC
-        sse:
-          connections:
-            server1:
-              url: http://127.0.0.1:11111/
-              # url: http://mcpService
+        enabled: false
 sw:
   ai:
+    legacy:
+      enabled: false
     creator-assistant:
       enabled: true
       stream-timeout-seconds: 45
       max-message-length: 1500
-        toolcallback:
-          enabled: true

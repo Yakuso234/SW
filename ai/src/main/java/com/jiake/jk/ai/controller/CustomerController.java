@@ -5,6 +5,7 @@ import com.jiake.jk.ai.utils.ReactiveUserContext;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import reactor.core.publisher.Flux;
 
 @Tag(name = "Customer")
 @RestController
+@ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
 @RequestMapping("/me/customer-service")
 public class CustomerController {
 

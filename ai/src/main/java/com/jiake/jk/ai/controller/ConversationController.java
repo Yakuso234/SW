@@ -8,6 +8,7 @@ import com.jiake.jk.common.response.Result;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -15,6 +16,7 @@ import java.util.List;
 
 @Tag(name = "Conversation")
 @RestController
+@ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
 @RequestMapping("/me/conversation")
 public class ConversationController {
 

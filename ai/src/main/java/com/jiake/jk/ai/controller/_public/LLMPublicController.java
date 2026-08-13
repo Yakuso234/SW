@@ -7,11 +7,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.Size;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
 @Tag(name = "LLMPublic")
 @RestController
+@ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
 @RequestMapping("/public/llm")
 public class LLMPublicController {
 

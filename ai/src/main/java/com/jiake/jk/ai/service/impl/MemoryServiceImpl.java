@@ -3,11 +3,13 @@ package com.jiake.jk.ai.service.impl;
 import com.jiake.jk.ai.service.MemoryService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
 @Service
+@ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class MemoryServiceImpl implements MemoryService {
 

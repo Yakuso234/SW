@@ -4,10 +4,12 @@ import com.jiake.jk.ai.cache.LlmSessionManager;
 import com.jiake.jk.ai.service.LLMService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 @Service
+@ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class LLMServiceImpl extends AbstractConversationChatService implements LLMService {
 

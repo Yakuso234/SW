@@ -11,6 +11,7 @@ import com.jiake.jk.common.utils.SnowflakeUtils;
 import org.apache.http.HttpException;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
 public class ConversationServiceImpl implements ConversationService {
 
     @Autowired

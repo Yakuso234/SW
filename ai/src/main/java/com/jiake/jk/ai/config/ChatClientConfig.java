@@ -6,6 +6,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.util.Arrays;
 
@@ -13,6 +14,7 @@ import java.util.Arrays;
 public class ChatClientConfig {
 
     @Bean
+    @ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
     public ChatClient chatClient(
             ChatClient.Builder chatClientBuilder,
             ToolCallbackProvider toolCallbackProvider) {
@@ -26,6 +28,7 @@ public class ChatClientConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
     public ChatClient titleClient(ChatClient.Builder chatClientBuilder) {
         return chatClientBuilder
                 .defaultAdvisors(new SimpleLoggerAdvisor())
@@ -33,6 +36,7 @@ public class ChatClientConfig {
     }
 
     @Bean
+    @ConditionalOnProperty(prefix = "sw.ai.legacy", name = "enabled", havingValue = "true")
     public ChatClient memoryClient(
             ChatClient.Builder chatClientBuilder,
             ToolCallbackProvider toolCallbackProvider) {

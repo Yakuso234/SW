@@ -10,9 +10,9 @@ spring:
     base-path: /ai/api
   cloud:
     nacos:
-      username: nacos
-      password: nacos
-      server-addr: nacos:8848
+      username: ${NACOS_USERNAME:nacos}
+      password: ${NACOS_PASSWORD:nacos}
+      server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
       config:
         namespace: dev
       discovery:
