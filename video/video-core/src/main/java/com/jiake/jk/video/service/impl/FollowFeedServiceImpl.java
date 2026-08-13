@@ -47,8 +47,14 @@ public class FollowFeedServiceImpl implements FollowFeedService {
 
     @Override
     public void fanoutPublishedVideo(VideoPublishedMessage message) {
-        if (message.getPublishedAt() == null) {
+        if (message.getPublishedAt() == null || message.getPublishedAt().isBlank()) {
             throw new YHServerException("发布事件缺少发布时间");
+        }
+        LocalDateTime publishedAt;
+        try {
+            publishedAt = LocalDateTime.parse(message.getPublishedAt());
+        } catch (RuntimeException exception) {
+            throw new YHServerException("发布事件发布时间格式无效");
         }
         Long lastFollowId = null;
         do {
@@ -58,7 +64,7 @@ public class FollowFeedServiceImpl implements FollowFeedService {
                 throw new YHServerException("获取粉丝列表失败: " + result.getMsg());
             }
             FollowerIdPageResponse page = result.getData();
-            insertInboxItems(page.getFollowerIds(), message);
+            insertInboxItems(page.getFollowerIds(), message, publishedAt);
             lastFollowId = page.getNextFollowId();
             if (!page.isHasMore()) {
                 return;
@@ -81,7 +87,7 @@ public class FollowFeedServiceImpl implements FollowFeedService {
         return new FollowFeedResponse(items, nextCursor, hasMore);
     }
 
-    private void insertInboxItems(List<Long> followerIds, VideoPublishedMessage message) {
+    private void insertInboxItems(List<Long> followerIds, VideoPublishedMessage message, LocalDateTime publishedAt) {
         if (followerIds == null || followerIds.isEmpty()) {
             return;
         }
@@ -92,7 +98,7 @@ public class FollowFeedServiceImpl implements FollowFeedService {
             item.setRecipientId(followerId);
             item.setVideoId(message.getVideoId());
             item.setCreatorId(message.getCreatorId());
-            item.setPublishedAt(message.getPublishedAt());
+            item.setPublishedAt(publishedAt);
             inboxItems.add(item);
         }
         videoFeedInboxMapper.insertIgnoreBatch(inboxItems);

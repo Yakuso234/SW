@@ -39,7 +39,7 @@ class FollowFeedServiceImplTest {
         VideoPublishedMessage event = new VideoPublishedMessage();
         event.setVideoId(200L);
         event.setCreatorId(100L);
-        event.setPublishedAt(LocalDateTime.now());
+        event.setPublishedAt(LocalDateTime.now().toString());
 
         service.fanoutPublishedVideo(event);
 

@@ -28,6 +28,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -166,5 +167,6 @@ class VideoProcessingTaskServiceImplTest {
                 outboxCaptor.getValue().getMessageBody(), VideoPublishedMessage.class);
         assertEquals(904L, event.getVideoId());
         assertEquals(905L, event.getCreatorId());
+        assertDoesNotThrow(() -> java.time.LocalDateTime.parse(event.getPublishedAt()));
     }
 }

@@ -225,7 +225,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
                     new com.jiake.jk.video.pojo.mq.VideoPublishedMessage();
             message.setVideoId(videoId);
             message.setCreatorId(video.getCreatorId());
-            message.setPublishedAt(video.getPublishedAt());
+            message.setPublishedAt(video.getPublishedAt().toString());
             message.setTraceId(TraceContext.getOrCreateTraceId());
 
             MessageOutbox outbox = new MessageOutbox();
