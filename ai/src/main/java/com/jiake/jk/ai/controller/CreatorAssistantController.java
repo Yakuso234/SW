@@ -28,10 +28,10 @@ public class CreatorAssistantController {
     public Flux<ServerSentEvent<String>> stream(@RequestBody CreatorAssistantChatRequest request,
                                                  ServerHttpRequest httpRequest,
                                                  ServerHttpResponse response) {
-        String traceId = httpRequest.getHeaders().getFirst(TraceContext.TRACE_ID_HEADER);
-        if (traceId == null || traceId.isBlank()) {
-            traceId = java.util.UUID.randomUUID().toString().replace("-", "");
-        }
+        String requestTraceId = httpRequest.getHeaders().getFirst(TraceContext.TRACE_ID_HEADER);
+        final String traceId = requestTraceId == null || requestTraceId.isBlank()
+                ? java.util.UUID.randomUUID().toString().replace("-", "")
+                : requestTraceId;
         response.getHeaders().set(TraceContext.TRACE_ID_HEADER, traceId);
         return ReactiveUserContext.getUserId()
                 .switchIfEmpty(reactor.core.publisher.Mono.error(new YHClientException("未识别到用户身份")))
