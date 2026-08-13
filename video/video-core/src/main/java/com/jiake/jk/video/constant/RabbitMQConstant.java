@@ -20,4 +20,7 @@ public class RabbitMQConstant {
     public final static String VIDEO_FAVORITE_QUEUE_KEY = "video.interaction.favorite";
     public final static String VIDEO_COMMENT_QUEUE = "video.comment.queue";
     public final static String VIDEO_COMMENT_QUEUE_KEY = "video.interaction.comment";
+    /** Reliable comment-counter event queue, delivered by the local Outbox through default exchange. */
+    public final static String VIDEO_COMMENT_RELIABLE_QUEUE = "video.comment.reliable.queue";
+    public final static String VIDEO_COMMENT_RELIABLE_DEAD_QUEUE = "video.comment.reliable.dead.queue";
 }

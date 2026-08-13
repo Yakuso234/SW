@@ -85,4 +85,17 @@ public class RabbitMQConfig {
     public Queue videoPublishInboxDeadQueue() {
         return QueueBuilder.durable(RabbitMQConstant.VIDEO_PUBLISH_INBOX_DEAD_QUEUE).build();
     }
+
+    @Bean
+    public Queue videoCommentReliableQueue() {
+        return QueueBuilder.durable(RabbitMQConstant.VIDEO_COMMENT_RELIABLE_QUEUE)
+                .deadLetterExchange("")
+                .deadLetterRoutingKey(RabbitMQConstant.VIDEO_COMMENT_RELIABLE_DEAD_QUEUE)
+                .build();
+    }
+
+    @Bean
+    public Queue videoCommentReliableDeadQueue() {
+        return QueueBuilder.durable(RabbitMQConstant.VIDEO_COMMENT_RELIABLE_DEAD_QUEUE).build();
+    }
 }

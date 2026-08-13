@@ -46,6 +46,7 @@ hs_err_pid*.log
 ### Local project continuity notes ###
 /PROJECT_MEMORY.md
 /docs/SW-问题与面试复盘.md
+/docs/~$*.md
 /.git-upstream-backup/
 /.git-personal-bootstrap/
 /.file/local-test/

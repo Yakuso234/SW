@@ -2,6 +2,8 @@ package com.jiake.jk.video.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiake.jk.common.exception.YHServerException;
 import com.jiake.jk.common.response.Result;
 import com.jiake.jk.common.utils.SnowflakeUtils;
@@ -13,6 +15,7 @@ import com.jiake.jk.video.mapstruct.InteractionMapStruct;
 import com.jiake.jk.video.pojo._enum.InteractionStatus;
 import com.jiake.jk.video.pojo.entity.*;
 import com.jiake.jk.video.pojo.entity.multi.CommentWithReceiver;
+import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import com.jiake.jk.video.pojo.mq.VideoCommentMessage;
 import com.jiake.jk.video.pojo.request.PostCommentRequest;
 import com.jiake.jk.video.pojo.request.VideoInteractionBatchRequest;
@@ -21,13 +24,15 @@ import com.jiake.jk.video.pojo.response.GetReplyCommentResponse;
 import com.jiake.jk.video.service.CollectionsItemService;
 import com.jiake.jk.video.service.CollectionsService;
 import com.jiake.jk.video.service.InteractionService;
+import com.jiake.jk.video.service.OutboxMessagePublisher;
 import com.jiake.jk.video.template.FavoriteInteraction;
 import com.jiake.jk.video.template.LikeInteraction;
 import org.apache.coyote.BadRequestException;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -53,7 +58,11 @@ public class InteractionServiceImpl implements InteractionService {
     @Autowired
     private UserPrivateClient userPrivateClient;
     @Autowired
-    private RabbitTemplate rabbitTemplate;
+    private MessageOutBoxMapper messageOutBoxMapper;
+    @Autowired
+    private ObjectMapper objectMapper;
+    @Autowired
+    private OutboxMessagePublisher outboxMessagePublisher;
     @Autowired
     private CollectionsItemService collectionsItemService;
 
@@ -169,6 +178,7 @@ public class InteractionServiceImpl implements InteractionService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public String comment(Long videoId, Long userId, PostCommentRequest postCommentRequest) throws BadRequestException {
         // 判断视频是否存在（如果是回复不应该传递videoId）
         if (!videoMapper.selectIsExistById(videoId)) {
@@ -197,10 +207,26 @@ public class InteractionServiceImpl implements InteractionService {
         videoCommentMessage.setId(videoUserComment.getId());
         videoCommentMessage.setVideoId(videoUserComment.getVideoId());
         videoCommentMessage.setUserId(videoUserComment.getUserId());
-        videoCommentMessage.setRootId(rootId);
+        videoCommentMessage.setRootId(videoUserComment.getRootId());
         videoCommentMessage.setContent(videoUserComment.getContent());
 
-        rabbitTemplate.convertAndSend(RabbitMQConstant.VIDEO_INTERACTION_TOPIC_EXCHANGE, RabbitMQConstant.VIDEO_COMMENT_QUEUE_KEY, videoCommentMessage);
+        MessageOutbox outbox = new MessageOutbox();
+        outbox.setBusinessId(videoUserComment.getId());
+        outbox.setExchangeName("");
+        outbox.setRoutingKey(RabbitMQConstant.VIDEO_COMMENT_RELIABLE_QUEUE);
+        try {
+            outbox.setMessageBody(objectMapper.writeValueAsString(videoCommentMessage));
+        } catch (JsonProcessingException exception) {
+            throw new YHServerException("评论事件序列化失败");
+        }
+        outbox.setStatus(MessageOutbox.OutboxStatus.PENDING);
+        messageOutBoxMapper.insert(outbox);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                outboxMessagePublisher.publish(outbox.getId());
+            }
+        });
 
         return videoUserComment.getId().toString();
     }

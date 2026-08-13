@@ -2,9 +2,11 @@ package com.jiake.jk.video.consumer;
 
 import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.mapper.VideoMapper;
+import com.jiake.jk.video.mapper.VideoCommentEventConsumptionMapper;
 import com.jiake.jk.video.mapper.VideoUserCommentMapper;
 import com.jiake.jk.video.mapper.VideoUserLikeMapper;
 import com.jiake.jk.video.pojo._enum.InteractionStatus;
+import com.jiake.jk.video.pojo.entity.VideoCommentEventConsumption;
 import com.jiake.jk.video.pojo.mq.VideoCommentIncrMessage;
 import com.jiake.jk.video.pojo.mq.VideoCommentMessage;
 import com.jiake.jk.video.pojo.mq.VideoInteractionMessage;
@@ -18,6 +20,7 @@ import org.springframework.amqp.rabbit.annotation.Queue;
 import org.springframework.amqp.rabbit.annotation.QueueBinding;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -29,20 +32,20 @@ public class VideoInteractionConsumer {
     private final InteractionService interactionService;
     private final VideoMapper videoMapper;
     private final VideoUserCommentMapper videoUserCommentMapper;
+    private final VideoCommentEventConsumptionMapper videoCommentEventConsumptionMapper;
 
-    @RabbitListener(
-            bindings = @QueueBinding(
-                    exchange = @Exchange(name = RabbitMQConstant.VIDEO_INTERACTION_TOPIC_EXCHANGE, type = ExchangeTypes.TOPIC),
-                    key = RabbitMQConstant.VIDEO_COMMENT_QUEUE_KEY,
-                    value = @Queue(name = RabbitMQConstant.VIDEO_COMMENT_QUEUE)
-            ),
-            containerFactory = "batchContainerFactory"
-    )
+    @Transactional
+    @RabbitListener(queues = RabbitMQConstant.VIDEO_COMMENT_RELIABLE_QUEUE, containerFactory = "batchContainerFactory")
     public void handleVideoCommentMessage(List<VideoCommentMessage> videoCommentMessageList) {
         Map<Long, Integer> videoCommentIncrMap = new HashMap<>();
         Map<Long, Integer> commentReplyIncrMap = new HashMap<>();
         /* 统计视频评论数增量和评论回复数增量 */
         for (VideoCommentMessage videoCommentMessage : videoCommentMessageList) {
+            VideoCommentEventConsumption consumption = new VideoCommentEventConsumption();
+            consumption.setCommentId(videoCommentMessage.getId());
+            if (videoCommentEventConsumptionMapper.insertIgnore(consumption) == 0) {
+                continue;
+            }
             // 统计视频评论数增量
             videoCommentIncrMap.put(videoCommentMessage.getVideoId(),
                     videoCommentIncrMap.getOrDefault(videoCommentMessage.getVideoId(), 0) + 1);

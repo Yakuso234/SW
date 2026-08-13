@@ -549,6 +549,14 @@ create index video_user_comment_parent_id_video_id_id_index
 create index video_user_comment_root_id_id_index
     on video_user_comment (root_id, id);
 
+create table video_comment_event_consumption
+(
+    comment_id  bigint unsigned                          not null comment '已消费的评论事件id'
+        primary key,
+    consumed_at datetime default CURRENT_TIMESTAMP       not null comment '首次消费时间'
+)
+    comment '评论计数事件幂等表';
+
 create table video_user_like
 (
     id       bigint                 not null
