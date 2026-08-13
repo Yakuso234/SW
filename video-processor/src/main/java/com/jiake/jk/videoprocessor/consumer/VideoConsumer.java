@@ -2,6 +2,7 @@ package com.jiake.jk.videoprocessor.consumer;
 
 import com.jiake.jk.video.feign.VideoPrivateClient;
 import com.jiake.jk.common.response.Result;
+import com.jiake.jk.common.trace.TraceContext;
 import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.videoprocessor.service.VideoTranscodingService;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
@@ -34,6 +35,16 @@ public class VideoConsumer {
 
     @RabbitListener(queues = "video.review.queue")
     public void handleVideoPostMessage(VideoReviewMessage videoReviewMessage) {
+        TraceContext.setTraceId(videoReviewMessage.getTraceId());
+        try {
+            handleMessageWithinTrace(videoReviewMessage);
+        } finally {
+            TraceContext.clear();
+        }
+    }
+
+    private void handleMessageWithinTrace(VideoReviewMessage videoReviewMessage) {
+        log.info("Received video processing message, videoId={}", videoReviewMessage.getVideoId());
         Result<Boolean> result = videoPrivateClient.claimVideoProcessing(videoReviewMessage.getVideoId());
         if (result.isError()) {
             // 抢占前任务仍处于 PENDING；直接死信会脱离处理租约恢复机制，因此保留消息重试。

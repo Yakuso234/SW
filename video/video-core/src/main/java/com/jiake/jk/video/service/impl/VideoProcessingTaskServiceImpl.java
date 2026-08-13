@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiake.jk.common.exception.YHServerException;
+import com.jiake.jk.common.trace.TraceContext;
 import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.mapper.MessageOutBoxMapper;
 import com.jiake.jk.video.mapper.VideoMapper;
@@ -188,6 +189,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
             return;
         }
         VideoReviewMessage message = new VideoReviewMessage();
+        message.setTraceId(TraceContext.getOrCreateTraceId());
         message.setVideoId(videoId);
         message.setVideoUrl(video.getUrl());
         message.setDescription(video.getDescription());

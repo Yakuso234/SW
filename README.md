@@ -164,6 +164,10 @@ POST /video/api/private/processing/{videoId}/recover-expired
 
 概览接口返回主队列/DLQ 消息数、处理中任务数和失败任务数。人工恢复接口只接受“租约已过期且仍为 `PROCESSING`”的视频任务；它会创建新的 Outbox 补偿消息，不会直接重放 DLQ 中的旧消息。
 
+### 链路排障
+
+所有 Servlet 请求会读取或生成 `X-Trace-Id`，并在响应头回传；Feign 调用自动透传该请求头。视频发布消息会把 TraceId 写入 Outbox 消息体，Processor 消费时恢复同一 TraceId 后再调用 Video Service。因此可使用响应头中的 TraceId 串联上传提交、Outbox、Processor 和处理结果回写日志。
+
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
 ## 近期里程碑

@@ -1,4 +1,5 @@
 com.jiake.jk.common.config.CommonConfig
+com.jiake.jk.common.config.TraceConfig
 com.jiake.jk.common.config.PropertiesConfig
 com.jiake.jk.common.config.JacksonConfig
 com.jiake.jk.common.config.XxlJobConfig

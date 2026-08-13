@@ -8,6 +8,7 @@ import com.jiake.jk.common.exception.YHServerException;
 import com.jiake.jk.common.response.Result;
 import com.jiake.jk.common.utils.AWSUtils;
 import com.jiake.jk.common.utils.SnowflakeUtils;
+import com.jiake.jk.common.trace.TraceContext;
 import com.jiake.jk.user.feign.UserFollowPrivateClient;
 import com.jiake.jk.user.feign.UserPreferencesPrivateClient;
 import com.jiake.jk.user.feign.UserPrivateClient;
@@ -376,6 +377,7 @@ public class VideoServiceImpl implements VideoService {
         /* 发送消息到消息队列 */
         // 构建消息对象
         VideoReviewMessage videoReviewMessage = new VideoReviewMessage();
+        videoReviewMessage.setTraceId(TraceContext.getOrCreateTraceId());
         videoReviewMessage.setVideoId(video.getId());
         videoReviewMessage.setVideoUrl(video.getUrl());
         videoReviewMessage.setTagNameList(postVideoMessageRequest.getAddedTagList());
