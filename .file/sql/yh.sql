@@ -430,12 +430,16 @@ create table video
     favorites   int unsigned default '0' null comment '收藏数',
     status      tinyint      default 0   not null comment '状态',
     updated_at  datetime                 null comment '更新时间',
+    published_at datetime                null comment '发布时间',
     created_at  datetime                 null comment '创建时间'
 )
     charset = utf8mb3;
 
 create index video_creator_id_status_id_index
     on video (creator_id asc, status asc, id desc);
+
+create index idx_video_status_published_at_id
+    on video (status asc, published_at desc, id desc);
 
 create table video_tag
 (

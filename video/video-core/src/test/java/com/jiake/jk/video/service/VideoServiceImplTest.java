@@ -12,6 +12,7 @@ import com.jiake.jk.video.mapper.VideoTagMapper;
 import com.jiake.jk.video.mapper.VideoTagMpMapper;
 import com.jiake.jk.video.mapper.VideoUploadTaskMapper;
 import com.jiake.jk.video.mapper.VideoProcessingTaskMapper;
+import com.jiake.jk.video.mapper.multi.VideoMultiMapper;
 import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.entity.VideoUploadTask;
@@ -19,6 +20,7 @@ import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
+import com.jiake.jk.video.pojo.response.PublishedFeedResponse;
 import com.jiake.jk.video.service.impl.VideoServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -58,6 +60,7 @@ class VideoServiceImplTest {
     @Mock private VideoUploadTaskMapper videoUploadTaskMapper;
     @Mock private MessageOutBoxMapper messageOutBoxMapper;
     @Mock private VideoProcessingTaskMapper videoProcessingTaskMapper;
+    @Mock private VideoMultiMapper videoMultiMapper;
     @Mock private AWSUtils awsUtils;
     @Mock private MultipartFile cover;
 
@@ -166,6 +169,28 @@ class VideoServiceImplTest {
         verify(videoMapper).update(isNull(), updateCaptor.capture());
         assertTrue(updateCaptor.getValue().getParamNameValuePairs().containsValue(Video.VideoStatus.PUBLISHED));
         assertTrue(updateCaptor.getValue().getSqlSegment().contains("status"));
+        assertTrue(updateCaptor.getValue().getSqlSet().contains("published_at"));
+    }
+
+    @Test
+    void getPublishedFeed_shouldUseLimitPlusOneForCursorPagination() {
+        VideoServiceImpl service = newService();
+        when(videoMultiMapper.selectPublishedFeed(isNull(), isNull(), isNull(), eq(4))).thenReturn(List.of());
+
+        PublishedFeedResponse response = service.getPublishedFeed(null, null, 3);
+
+        assertTrue(response.getItems().isEmpty());
+        assertTrue(!response.isHasMore());
+        assertEquals(null, response.getNextCursor());
+    }
+
+    @Test
+    void getPublishedFeed_shouldRejectMalformedCursor() {
+        VideoServiceImpl service = newService();
+
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> service.getPublishedFeed(null, "not-a-valid-cursor", 10));
+        verifyNoInteractions(videoMultiMapper);
     }
 
     private VideoServiceImpl newService() {
@@ -176,6 +201,7 @@ class VideoServiceImplTest {
         ReflectionTestUtils.setField(service, "videoUploadTaskMapper", videoUploadTaskMapper);
         ReflectionTestUtils.setField(service, "messageOutBoxMapper", messageOutBoxMapper);
         ReflectionTestUtils.setField(service, "videoProcessingTaskMapper", videoProcessingTaskMapper);
+        ReflectionTestUtils.setField(service, "videoMultiMapper", videoMultiMapper);
         ReflectionTestUtils.setField(service, "awsUtils", awsUtils);
         ReflectionTestUtils.setField(service, "objectMapper", objectMapper);
         return service;

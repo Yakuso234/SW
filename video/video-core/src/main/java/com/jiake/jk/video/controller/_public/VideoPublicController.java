@@ -3,6 +3,7 @@ package com.jiake.jk.video.controller._public;
 import com.jiake.jk.common.response.Result;
 import com.jiake.jk.common.utils.UserContext;
 import com.jiake.jk.video.pojo.response.GetPublishedVideoResponse;
+import com.jiake.jk.video.pojo.response.PublishedFeedResponse;
 import com.jiake.jk.video.pojo.response.VideoMainResponse;
 import com.jiake.jk.video.pojo.response.VideoSearchResponse;
 import com.jiake.jk.video.service.VideoService;
@@ -25,6 +26,14 @@ public class VideoPublicController {
     @GetMapping("/list")
     public Result<List<VideoMainResponse>> getVideos() {
         return Result.success(videoService.getVideos(UserContext.getUser()));
+    }
+
+    @Operation(summary = "按发布时间游标分页获取已发布视频 Feed")
+    @GetMapping("/feed")
+    public Result<PublishedFeedResponse> getPublishedFeed(
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer pageSize) {
+        return Result.success(videoService.getPublishedFeed(UserContext.getUser(), cursor, pageSize));
     }
 
     @Operation(summary = "获取指定视频数据")

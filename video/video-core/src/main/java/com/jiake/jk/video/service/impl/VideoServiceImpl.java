@@ -47,6 +47,7 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -54,6 +55,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class VideoServiceImpl implements VideoService {
+
+    private static final int DEFAULT_FEED_PAGE_SIZE = 10;
+    private static final int MAX_FEED_PAGE_SIZE = 20;
 
     @Autowired
     private VideoMapper videoMapper;
@@ -93,6 +97,14 @@ public class VideoServiceImpl implements VideoService {
         List<VideoWithInteractionStatus> statusList =
                 videoMultiMapper.selectMainRandom(userId);
 
+        return enrichVideoMainResponses(userId, statusList);
+    }
+
+    private List<VideoMainResponse> enrichVideoMainResponses(Long userId,
+                                                              List<VideoWithInteractionStatus> statusList) {
+        if (statusList.isEmpty()) {
+            return Collections.emptyList();
+        }
         List<VideoMainResponse> responses = statusList.stream()
                 .map(status -> {
                     VideoMainResponse response = VideoMapStruct.INSTANCE.toVideoMainResponse(status);
@@ -138,6 +150,61 @@ public class VideoServiceImpl implements VideoService {
         });
 
         return responses;
+    }
+
+    @Override
+    public PublishedFeedResponse getPublishedFeed(Long userId, String cursor, Integer pageSize) {
+        FeedCursor feedCursor = decodeFeedCursor(cursor);
+        int limit = normalizeFeedPageSize(pageSize) + 1;
+        List<VideoWithInteractionStatus> rows = videoMultiMapper.selectPublishedFeed(
+                userId, feedCursor.publishedAt(), feedCursor.videoId(), limit);
+        boolean hasMore = rows.size() == limit;
+        if (hasMore) {
+            rows = rows.subList(0, limit - 1);
+        }
+        List<VideoMainResponse> items = enrichVideoMainResponses(userId, rows);
+        String nextCursor = hasMore && !rows.isEmpty()
+                ? encodeFeedCursor(rows.get(rows.size() - 1))
+                : null;
+        return new PublishedFeedResponse(items, nextCursor, hasMore);
+    }
+
+    private int normalizeFeedPageSize(Integer pageSize) {
+        if (pageSize == null) {
+            return DEFAULT_FEED_PAGE_SIZE;
+        }
+        if (pageSize < 1 || pageSize > MAX_FEED_PAGE_SIZE) {
+            throw new YHClientException("pageSize 必须在 1 到 20 之间");
+        }
+        return pageSize;
+    }
+
+    private FeedCursor decodeFeedCursor(String cursor) {
+        if (!StringUtils.hasText(cursor)) {
+            return new FeedCursor(null, null);
+        }
+        try {
+            String decoded = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+            int delimiter = decoded.lastIndexOf('|');
+            if (delimiter <= 0 || delimiter == decoded.length() - 1) {
+                throw new IllegalArgumentException("invalid delimiter");
+            }
+            return new FeedCursor(LocalDateTime.parse(decoded.substring(0, delimiter)),
+                    Long.parseLong(decoded.substring(delimiter + 1)));
+        } catch (IllegalArgumentException exception) {
+            throw new YHClientException("分页游标无效");
+        }
+    }
+
+    private String encodeFeedCursor(VideoWithInteractionStatus lastVideo) {
+        if (lastVideo.getPublishedAt() == null) {
+            throw new YHServerException("无法生成下一页游标");
+        }
+        String value = lastVideo.getPublishedAt() + "|" + lastVideo.getId();
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private record FeedCursor(LocalDateTime publishedAt, Long videoId) {
     }
 
     private Map<Long, UserInfoInListResponse> fetchAndCacheUserInfo(List<Long> creatorIdList) {
@@ -468,6 +535,7 @@ public class VideoServiceImpl implements VideoService {
         }
         return videoMapper.update(null, new LambdaUpdateWrapper<Video>()
                 .set(Video::getStatus, targetStatus)
+                .set(targetStatus == Video.VideoStatus.PUBLISHED, Video::getPublishedAt, LocalDateTime.now())
                 .eq(Video::getId, videoId)
                 .eq(Video::getStatus, expectedStatus)) == 1;
     }

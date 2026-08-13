@@ -22,6 +22,7 @@ public class Video {
     LocalDateTime createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)
     LocalDateTime updatedAt;
+    LocalDateTime publishedAt;
 
     public enum VideoStatus {
         DRAFT(0, "草稿"),

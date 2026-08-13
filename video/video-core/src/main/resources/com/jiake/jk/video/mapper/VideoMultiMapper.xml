@@ -4,92 +4,59 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.jiake.jk.video.mapper.multi.VideoMultiMapper">
 
-    <select id="selectMainRandom"
-            resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
-        SELECT
-        v.id,
-        v.creator_id,
-        v.url,
-        v.description,
-        v.likes,
-        v.comments,
-        v.favorites,
+    <sql id="videoFields">
+        v.id, v.creator_id, v.url, v.description, v.likes, v.comments, v.favorites, v.published_at,
         <choose>
-            <when test="userId != null">
-                IF(vul.user_id IS NOT NULL, 1, 0)
-            </when>
+            <when test="userId != null">IF(vul.user_id IS NOT NULL, 1, 0)</when>
             <otherwise>0</otherwise>
-        </choose>
-        AS is_like,
+        </choose> AS is_like,
         <choose>
-            <when test="userId != null">
-                IF(vuf.user_id IS NOT NULL, 1, 0)
-            </when>
+            <when test="userId != null">IF(vuf.user_id IS NOT NULL, 1, 0)</when>
             <otherwise>0</otherwise>
-        </choose>
-        AS is_favorite
-        FROM video v
+        </choose> AS is_favorite
+    </sql>
 
+    <sql id="interactionJoins">
         <if test="userId != null">
             LEFT JOIN video_user_like vul ON (
-            v.id = vul.video_id
-            AND vul.user_id = #{userId}
-            AND vul.status = 'FRONT'
+                v.id = vul.video_id AND vul.user_id = #{userId} AND vul.status = 'FRONT'
             )
             LEFT JOIN video_user_collections_item vuf ON (
-            v.id = vuf.video_id
-            AND vuf.user_id = #{userId}
+                v.id = vuf.video_id AND vuf.user_id = #{userId}
             )
         </if>
+    </sql>
 
+    <select id="selectMainRandom" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
+        SELECT <include refid="videoFields"/>
+        FROM video v
+        <include refid="interactionJoins"/>
         WHERE v.status = 5
-        AND v.id >= (
-        SELECT MIN(id) + FLOOR(RAND() * (MAX(id) - MIN(id)))
-        FROM video
-        WHERE status = 5
-        )
+          AND v.id >= (
+              SELECT MIN(id) + FLOOR(RAND() * (MAX(id) - MIN(id)))
+              FROM video WHERE status = 5
+          )
         LIMIT 10
     </select>
 
-    <select id="selectMainOne"
-            resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
-        SELECT
-        v.id,
-        v.creator_id,
-        v.url,
-        v.description,
-        v.likes,
-        v.comments,
-        v.favorites,
-        <choose>
-            <when test="userId != null">
-                IF(vul.user_id IS NOT NULL, 1, 0)
-            </when>
-            <otherwise>0</otherwise>
-        </choose>
-        AS is_like,
-        <choose>
-            <when test="userId != null">
-                IF(vuf.user_id IS NOT NULL, 1, 0)
-            </when>
-            <otherwise>0</otherwise>
-        </choose>
-        AS is_favorite
+    <select id="selectMainOne" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
+        SELECT <include refid="videoFields"/>
         FROM video v
+        <include refid="interactionJoins"/>
+        WHERE v.id = #{videoId} AND v.status = 5
+    </select>
 
-        <if test="userId != null">
-            LEFT JOIN video_user_like vul ON (
-            v.id = vul.video_id
-            AND vul.user_id = #{userId}
-            AND vul.status = 'FRONT'
-            )
-            LEFT JOIN video_user_collections_item vuf ON (
-            v.id = vuf.video_id
-            AND vuf.user_id = #{userId}
-            )
+    <select id="selectPublishedFeed" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
+        SELECT <include refid="videoFields"/>
+        FROM video v
+        <include refid="interactionJoins"/>
+        WHERE v.status = 5
+          AND v.published_at IS NOT NULL
+        <if test="publishedAt != null">
+            AND (v.published_at &lt; #{publishedAt}
+                OR (v.published_at = #{publishedAt} AND v.id &lt; #{videoId}))
         </if>
-
-        WHERE v.id = #{videoId}
-        AND v.status = 5
+        ORDER BY v.published_at DESC, v.id DESC
+        LIMIT #{limit}
     </select>
 </mapper>
