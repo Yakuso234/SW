@@ -73,6 +73,8 @@ seata:
       yx: "default"
 
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{traceId:-}] [%thread] %logger{36} - %msg%n"
   level:
     org.springframework.jdbc.support.JdbcTransactionManager: debug
 

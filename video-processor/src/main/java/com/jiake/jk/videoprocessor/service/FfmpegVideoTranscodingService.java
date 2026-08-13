@@ -4,6 +4,7 @@ import com.jiake.jk.common.utils.AWSUtils;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,11 +28,23 @@ public class FfmpegVideoTranscodingService implements VideoTranscodingService {
 
     private final AWSUtils awsUtils;
     private final MeterRegistry meterRegistry;
+    private Timer transcodingTimer;
+    private Counter transcodingFailureCounter;
 
     @Value("${sw.video-processing.ffmpeg-command:ffmpeg}")
     private String ffmpegCommand;
     @Value("${sw.video-processing.ffmpeg-timeout-seconds:600}")
     private long timeoutSeconds;
+
+    @PostConstruct
+    void registerMetrics() {
+        transcodingTimer = Timer.builder("sw.video.transcoding")
+                .description("Video transcoding end-to-end duration")
+                .register(meterRegistry);
+        transcodingFailureCounter = Counter.builder("sw.video.transcoding.failures")
+                .description("Video transcoding failures")
+                .register(meterRegistry);
+    }
 
     @Override
     public TranscodingResult transcode(Long videoId, String sourceObjectKey) throws Exception {
@@ -52,15 +65,10 @@ public class FfmpegVideoTranscodingService implements VideoTranscodingService {
             awsUtils.putObject(coverKey, cover, "image/jpeg");
             return new TranscodingResult(processedKey, coverKey);
         } catch (Exception exception) {
-            Counter.builder("sw.video.transcoding.failures")
-                    .description("Video transcoding failures")
-                    .register(meterRegistry)
-                    .increment();
+            transcodingFailureCounter.increment();
             throw exception;
         } finally {
-            timerSample.stop(Timer.builder("sw.video.transcoding")
-                    .description("Video transcoding end-to-end duration")
-                    .register(meterRegistry));
+            timerSample.stop(transcodingTimer);
             deleteWorkDir(workDir);
         }
     }

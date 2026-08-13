@@ -175,9 +175,11 @@ Video Service 与 Video Processor 已引入 Actuator 和 Prometheus registry。�
 ```text
 GET /video/api/actuator/health
 GET /video/api/actuator/prometheus
+GET /video-processor/api/actuator/health
+GET /video-processor/api/actuator/prometheus
 ```
 
-业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds` 和 `sw_video_transcoding_failures_total`。本次仅完成代码与单元测试验证；Prometheus 抓取配置、Grafana 面板和现场指标采样留待下一步。
+业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds` 和 `sw_video_transcoding_failures_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。本次仅完成代码与单元测试验证；Prometheus 抓取配置、Grafana 面板和现场指标采样留待下一步。
 
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
