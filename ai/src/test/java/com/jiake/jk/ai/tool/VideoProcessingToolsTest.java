@@ -30,6 +30,8 @@ class VideoProcessingToolsTest {
 
         assertTrue(response.contains("videoId=701"));
         assertTrue(response.contains("PROCESSING"));
+        assertTrue(response.contains("仅系统累计计数"));
+        assertTrue(response.contains("工具返回最近更新时间"));
         verify(client).getCreatorVideoProcessingStatus(101L, 701L);
     }
 

@@ -40,7 +40,7 @@ public class VideoProcessingTools {
             VideoProcessingStatusResponse status = result.getData();
             log.info("Video processing tool succeeded, userId={}, videoId={}, traceId={}",
                     creatorUserId, videoId, traceId);
-            return "videoId=%d; videoStatus=%s; processingStatus=%s; retryCount=%s; leaseExpireAt=%s; errorMessage=%s; updatedAt=%s"
+            return "videoId=%d; videoStatus=%s; processingStatus=%s; retryCount=%s; retryCountNote=仅系统累计计数，未提供原因，禁止基于该字段推断异常或重试过程; leaseExpireAt=%s; errorMessage=%s; updatedAt=%s; updatedAtNote=输出时只能使用“工具返回最近更新时间：字段值”，不得追加解释"
                     .formatted(status.videoId(), status.videoStatus(), status.processingStatus(), status.retryCount(),
                             status.leaseExpireAt(), status.errorMessage(), status.updatedAt());
         } catch (FeignException exception) {
