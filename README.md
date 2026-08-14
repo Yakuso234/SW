@@ -187,15 +187,23 @@ GET /video-processor/api/actuator/health
 GET /video-processor/api/actuator/prometheus
 ```
 
-业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds` 和 `sw_video_transcoding_failures_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。本次仅完成代码与单元测试验证；Prometheus 抓取配置、Grafana 面板和现场指标采样留待下一步。
+业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds` 和 `sw_video_transcoding_failures_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。Prometheus 抓取配置与 Grafana 看板已版本化；现场采样和故障演练以 Prometheus Targets 全部按实际运行状态确认后记录。
+
+本机启动可观测组件：
+
+```powershell
+docker compose --profile observability up -d prometheus grafana
+```
+
+Prometheus 位于 `http://localhost:9090`，Grafana 位于 `http://localhost:3000`。两者仅绑定本机回环地址；Grafana 默认本机登录为 `admin/admin`，首次使用后应在 `.env` 设置 `GRAFANA_ADMIN_USER` 和 `GRAFANA_ADMIN_PASSWORD` 后重启 Grafana。预置看板为“SW / SW 核心链路可观测性”，包含网关限流拒绝、Outbox 投递失败、转码 P95 耗时和转码失败次数。Prometheus 会从 Docker 容器访问 IDEA 本机服务，因此需先启动 Gateway、Video、Video Processor。
 
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
 ## 近期里程碑
 
-- 2026-08-23：视频可靠异步处理 v1 与 E2E 演示。
-- 2026-09-07：AI 运营助手、服务边界和链路追踪。
-- 2026-09-16：测试、监控、故障演练、压测与 CI 收口。
+- 2026-08-23：视频可靠异步处理 v1、E2E 演示与 Prometheus/Grafana 现场证据。
+- 2026-09-07：AI 创作者助手、服务边界、TraceId 与前后端联调演示。
+- 2026-09-16：测试、监控、故障演练、压测与 CI 远端验收收口。
 - 2026-10-07：双项目作品集与面试材料阶段性收口；之后继续迭代。
 
 ## 项目说明

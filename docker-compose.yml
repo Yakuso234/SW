@@ -49,6 +49,34 @@ services:
       - "8848:8848"
       - "9848:9848"
 
+  prometheus:
+    image: prom/prometheus:v2.53.1
+    profiles: [observability]
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./.file/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: [observability]
+    depends_on: [prometheus]
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./.file/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./.file/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+
   gateway:
     image: eclipse-temurin:21-jre
     profiles: [app]
@@ -107,3 +135,5 @@ services:
 volumes:
   mysql-data:
   minio-data:
+  prometheus-data:
+  grafana-data:
