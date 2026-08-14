@@ -55,6 +55,15 @@
       "targets": [{"expr": "sum(increase(sw_video_publish_inbox_dead_letter_total[$__rate_interval]))", "legendFormat": "dead letters"}],
       "title": "关注流最终死信次数",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "sw-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 7,
+      "targets": [{"expr": "sum(increase(sw_video_publish_inbox_dead_letter_recovery_total[$__rate_interval]))", "legendFormat": "manual recoveries"}],
+      "title": "关注流死信人工恢复次数",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
@@ -63,5 +72,5 @@
   "time": {"from": "now-1h", "to": "now"},
   "title": "SW 核心链路可观测性",
   "uid": "sw-core-observability",
-  "version": 2
+  "version": 3
 }

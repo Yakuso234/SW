@@ -3,6 +3,7 @@ package com.jiake.jk.video.controller._private;
 import com.jiake.jk.common.response.Result;
 import com.jiake.jk.video.service.VideoService;
 import com.jiake.jk.video.service.VideoProcessingTaskService;
+import com.jiake.jk.video.service.FollowFeedDeadLetterRecoveryService;
 import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +25,8 @@ public class VideoPrivateController {
     private VideoService videoService;
     @Autowired
     private VideoProcessingTaskService videoProcessingTaskService;
+    @Autowired
+    private FollowFeedDeadLetterRecoveryService followFeedDeadLetterRecoveryService;
 
     @PutMapping("/to-published/{videoId}")
     public Result<Void> putVideoStatusToPublished(@PathVariable Long videoId) {
@@ -77,6 +80,15 @@ public class VideoPrivateController {
     @org.springframework.web.bind.annotation.PostMapping("/processing/{videoId}/recover-expired")
     public Result<Boolean> recoverExpiredProcessingTask(@PathVariable Long videoId) {
         return Result.success(videoProcessingTaskService.recoverExpiredProcessingTask(videoId));
+    }
+
+    /**
+     * 仅供内网运维人工触发：先生成带唯一摘要的恢复审计和新 Outbox，再确认关注流死信。
+     */
+    @org.springframework.web.bind.annotation.PostMapping("/follow-feed/operations/recover-dead")
+    public Result<FollowFeedDeadLetterRecoveryService.RecoveryResult> recoverFollowFeedDeadLetters(
+            @RequestParam(defaultValue = "10") Integer batchSize) {
+        return Result.success(followFeedDeadLetterRecoveryService.recover(batchSize));
     }
 
     public record VideoProcessingResultRequest(String processedVideoKey, String coverKey) { }

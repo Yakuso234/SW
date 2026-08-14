@@ -34,5 +34,5 @@ jobs:
         run: >-
           mvn -B -ntp
           -Dsurefire.failIfNoSpecifiedTests=false
-          -Dtest=InternalRouteBlockFilterTest,GatewayRateLimitServiceTest,VideoServiceImplTest,OutboxMessagePublisherTest,VideoProcessingTaskServiceImplTest,VideoPublishedInboxConsumerTest,VideoConsumerTest,CreatorAssistantServiceImplTest,VideoProcessingToolsTest
+          -Dtest=InternalRouteBlockFilterTest,GatewayRateLimitServiceTest,VideoServiceImplTest,OutboxMessagePublisherTest,VideoProcessingTaskServiceImplTest,VideoPublishedInboxConsumerTest,FollowFeedDeadLetterPreparationServiceTest,FollowFeedDeadLetterRecoveryServiceTest,FollowFeedServiceImplTest,VideoConsumerTest,CreatorAssistantServiceImplTest,VideoProcessingToolsTest
           -pl gateway,video/video-core,video-processor,ai -am test

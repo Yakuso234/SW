@@ -24,6 +24,8 @@ import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -37,6 +39,7 @@ public class FollowFeedServiceImpl implements FollowFeedService {
     private static final int FOLLOWER_PAGE_SIZE = 500;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 20;
+    private static final DateTimeFormatter LEGACY_EVENT_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final VideoFeedInboxMapper videoFeedInboxMapper;
     private final VideoMultiMapper videoMultiMapper;
@@ -50,12 +53,7 @@ public class FollowFeedServiceImpl implements FollowFeedService {
         if (message.getPublishedAt() == null || message.getPublishedAt().isBlank()) {
             throw new YHServerException("发布事件缺少发布时间");
         }
-        LocalDateTime publishedAt;
-        try {
-            publishedAt = LocalDateTime.parse(message.getPublishedAt());
-        } catch (RuntimeException exception) {
-            throw new YHServerException("发布事件发布时间格式无效");
-        }
+        LocalDateTime publishedAt = parsePublishedAt(message.getPublishedAt());
         Long lastFollowId = null;
         do {
             Result<FollowerIdPageResponse> result = userFollowPrivateClient.getFollowerIds(
@@ -102,6 +100,18 @@ public class FollowFeedServiceImpl implements FollowFeedService {
             inboxItems.add(item);
         }
         videoFeedInboxMapper.insertIgnoreBatch(inboxItems);
+    }
+
+    private LocalDateTime parsePublishedAt(String value) {
+        try {
+            return LocalDateTime.parse(value);
+        } catch (DateTimeParseException ignored) {
+            try {
+                return LocalDateTime.parse(value, LEGACY_EVENT_TIME_FORMATTER);
+            } catch (DateTimeParseException exception) {
+                throw new YHServerException("发布事件发布时间格式无效");
+            }
+        }
     }
 
     private List<VideoMainResponse> enrich(List<VideoWithInteractionStatus> rows) {

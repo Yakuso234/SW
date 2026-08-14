@@ -136,7 +136,7 @@ mvn -DskipTests install
 公开仓库的 GitHub Actions 使用 JDK 21 自动执行下列主线回归，不依赖个人密钥或 Docker 中间件：
 
 ```powershell
-mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlockFilterTest,GatewayRateLimitServiceTest,VideoServiceImplTest,OutboxMessagePublisherTest,VideoProcessingTaskServiceImplTest,VideoConsumerTest,CreatorAssistantServiceImplTest,VideoProcessingToolsTest" -pl gateway,video/video-core,video-processor,ai -am test
+mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlockFilterTest,GatewayRateLimitServiceTest,VideoServiceImplTest,OutboxMessagePublisherTest,VideoProcessingTaskServiceImplTest,VideoPublishedInboxConsumerTest,FollowFeedDeadLetterPreparationServiceTest,FollowFeedDeadLetterRecoveryServiceTest,FollowFeedServiceImplTest,VideoConsumerTest,CreatorAssistantServiceImplTest,VideoProcessingToolsTest" -pl gateway,video/video-core,video-processor,ai -am test
 ```
 
 ### 本机服务启动顺序
@@ -184,6 +184,14 @@ POST /video/api/private/processing/{videoId}/recover-expired
 
 视频发布后的关注流扇出使用独立 Inbox 队列。User Service 等下游短暂不可用时，消息会携带尝试次数进入 `video.publish.inbox.retry.queue`，在 Broker 持久化等待 5 秒后回流主队列；第 3 次仍失败才进入 `video.publish.inbox.dead.queue`。该策略避免消费者高频重试，也不会影响视频已发布的主状态机。
 
+最终 DLQ 仅允许内网运维人工恢复：
+
+```text
+POST /video/api/private/follow-feed/operations/recover-dead?batchSize=10
+```
+
+恢复操作先按原消息摘要创建审计记录和新的 PENDING Outbox，数据库事务成功后才 ACK 原 DLQ 消息；不会把旧消息直接 requeue。若应用在提交后 ACK 前中断，下一次操作会复用仍在投递中的 Outbox；若前一次 Outbox 已结束而消息因下游业务规则仍回到 DLQ，则生成带递增尝试号的新审计记录。`video_feed_inbox` 的 `(recipient_id, video_id)` 唯一约束兜底业务幂等。该接口受 Gateway 的 `/api/private/**` 阻断，只应从受限运维网络直连调用。
+
 固定环境的端到端延迟基线（串行、1 次预热 + 5 次测量）可使用：
 
 ```powershell
@@ -207,7 +215,7 @@ GET /video-processor/api/actuator/health
 GET /video-processor/api/actuator/prometheus
 ```
 
-业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds`、`sw_video_transcoding_failures_total`、`sw_video_publish_inbox_retry_total` 和 `sw_video_publish_inbox_dead_letter_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。Prometheus 抓取配置与 Grafana 看板已版本化；现场采样和故障演练以 Prometheus Targets 全部按实际运行状态确认后记录。
+业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds`、`sw_video_transcoding_failures_total`、`sw_video_publish_inbox_retry_total`、`sw_video_publish_inbox_dead_letter_total` 和 `sw_video_publish_inbox_dead_letter_recovery_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。Prometheus 抓取配置与 Grafana 看板已版本化；现场采样和故障演练以 Prometheus Targets 全部按实际运行状态确认后记录。
 
 本机启动可观测组件：
 

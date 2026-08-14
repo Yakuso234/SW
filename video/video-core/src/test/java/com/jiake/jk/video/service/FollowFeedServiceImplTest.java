@@ -47,4 +47,24 @@ class FollowFeedServiceImplTest {
         verify(followClient).getFollowerIds(100L, 99L, 500);
         verify(inboxMapper, times(2)).insertIgnoreBatch(anyList());
     }
+
+    @Test
+    void fanoutPublishedVideo_shouldAcceptLegacySpaceSeparatedTimestamp() {
+        VideoFeedInboxMapper inboxMapper = mock(VideoFeedInboxMapper.class);
+        UserFollowPrivateClient followClient = mock(UserFollowPrivateClient.class);
+        when(followClient.getFollowerIds(eq(100L), isNull(), eq(500)))
+                .thenReturn(Result.success(new FollowerIdPageResponse(List.of(11L), null, false)));
+        SnowflakeUtils snowflakeUtils = mock(SnowflakeUtils.class);
+        when(snowflakeUtils.nextId()).thenReturn(1L);
+        FollowFeedServiceImpl service = new FollowFeedServiceImpl(inboxMapper, mock(VideoMultiMapper.class), followClient,
+                mock(UserPrivateClient.class), snowflakeUtils, mock(AWSUtils.class));
+        VideoPublishedMessage event = new VideoPublishedMessage();
+        event.setVideoId(200L);
+        event.setCreatorId(100L);
+        event.setPublishedAt("2026-08-13 11:23:58");
+
+        service.fanoutPublishedVideo(event);
+
+        verify(inboxMapper).insertIgnoreBatch(anyList());
+    }
 }

@@ -456,6 +456,21 @@ create table video_feed_inbox
 create index idx_video_feed_inbox_recipient_published_id
     on video_feed_inbox (recipient_id asc, published_at desc, id desc);
 
+create table video_publish_inbox_recovery
+(
+    id             bigint unsigned not null primary key,
+    message_digest char(64)         not null comment '死信原始消息 SHA-256',
+    video_id       bigint unsigned  not null,
+    creator_id     bigint unsigned  not null,
+    trace_id       varchar(64)      null,
+    recovery_attempt int unsigned   not null comment '同一消息的人工恢复尝试序号',
+    outbox_id      bigint unsigned  not null comment '恢复后创建的新 Outbox',
+    created_at     datetime         null,
+    constraint uk_video_publish_inbox_recovery_digest_attempt unique (message_digest, recovery_attempt),
+    constraint uk_video_publish_inbox_recovery_outbox unique (outbox_id)
+)
+    comment '关注流死信人工恢复审计表' charset = utf8mb3;
+
 create table video_tag
 (
     id           bigint                             not null
