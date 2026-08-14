@@ -73,7 +73,7 @@ POST /video/api/private/follow-feed/operations/recover-dead?batchSize=10
 
 默认执行 1 次预热和 5 次串行测量。当前一组有效本机样本的 Min/P50/P95/Max 为 3470/3500/3506/3506 ms；使用时必须说明它是“同机、串行、2 秒隔离媒体、从预签名到已发布”的回归口径。
 
-Grafana 看板 `SW / SW 核心链路可观测性` 可展示：网关限流拒绝、Outbox 失败、转码耗时与失败、关注流重试/最终死信/人工恢复。优先展示与本次演练对应的非零指标；没有样本时如实说明，不制造曲线。
+Grafana 看板 `SW / SW 核心链路可观测性` 可展示：网关限流拒绝、Outbox 失败、转码耗时与失败、关注流重试/最终死信/人工恢复。AI 工具调用可在 Prometheus 查询 `sw_ai_creator_assistant_tool_invocations_total`，只按工具名计数，不记录用户、视频或提示词。优先展示与本次演练对应的非零指标；没有样本时如实说明，不制造曲线。
 
 ## 6. 面试讲解顺序（约 6 分钟）
 

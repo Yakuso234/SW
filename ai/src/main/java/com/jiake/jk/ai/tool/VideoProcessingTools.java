@@ -6,6 +6,8 @@ import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
 import feign.FeignException;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -25,6 +27,7 @@ public class VideoProcessingTools {
     private static final String TRACE_ID_CONTEXT_KEY = "traceId";
 
     private final VideoPrivateClient videoPrivateClient;
+    private final MeterRegistry meterRegistry;
 
     @Tool(name = "query_video_processing_status", description = "查询当前创作者指定视频的异步处理状态、重试次数和失败摘要。"
             + "仅当用户询问某个明确 videoId 的上传、转码、审核或处理进度时调用。")
@@ -32,6 +35,7 @@ public class VideoProcessingTools {
             @ToolParam(description = "用户明确提供的视频ID") Long videoId,
             ToolContext toolContext) {
         Long creatorUserId = getRequiredUserId(toolContext);
+        recordInvocation("query_status");
         String traceId = String.valueOf(toolContext.getContext().getOrDefault(TRACE_ID_CONTEXT_KEY, ""));
         try {
             Result<VideoProcessingStatusResponse> result =
@@ -70,6 +74,7 @@ public class VideoProcessingTools {
             @ToolParam(description = "用户明确提供的视频ID") Long videoId,
             ToolContext toolContext) {
         Long creatorUserId = getRequiredUserId(toolContext);
+        recordInvocation("diagnose_failure");
         String traceId = String.valueOf(toolContext.getContext().getOrDefault(TRACE_ID_CONTEXT_KEY, ""));
         try {
             Result<VideoProcessingStatusResponse> result =
@@ -111,6 +116,15 @@ public class VideoProcessingTools {
     private boolean isFailed(VideoProcessingStatusResponse status) {
         return status.processingStatus() == VideoProcessingTask.ProcessingStatus.FAILED
                 || status.videoStatus() == Video.VideoStatus.REJECTED;
+    }
+
+    /** Records tool execution without attaching creator, video, prompt, or model-response data to metrics. */
+    private void recordInvocation(String tool) {
+        Counter.builder("sw.ai.creator_assistant.tool.invocations")
+                .description("Creator assistant read-only tool invocations")
+                .tag("tool", tool)
+                .register(meterRegistry)
+                .increment();
     }
 
     private String diagnose(String errorMessage) {

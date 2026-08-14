@@ -7,10 +7,12 @@ import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.model.ToolContext;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.util.Map;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
@@ -20,7 +22,8 @@ class VideoProcessingToolsTest {
     @Test
     void queryStatus_shouldUseIdentityFromToolContextInsteadOfModelArgument() {
         VideoPrivateClient client = mock(VideoPrivateClient.class);
-        VideoProcessingTools tools = new VideoProcessingTools(client);
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        VideoProcessingTools tools = new VideoProcessingTools(client, registry);
         when(client.getCreatorVideoProcessingStatus(101L, 701L)).thenReturn(Result.success(
                 new VideoProcessingStatusResponse(701L, Video.VideoStatus.PROCESSING,
                         VideoProcessingTask.ProcessingStatus.PROCESSING, 1, null, null, null)));
@@ -33,12 +36,14 @@ class VideoProcessingToolsTest {
         assertTrue(response.contains("仅系统累计计数"));
         assertTrue(response.contains("工具返回最近更新时间"));
         verify(client).getCreatorVideoProcessingStatus(101L, 701L);
+        assertEquals(1, registry.get("sw.ai.creator_assistant.tool.invocations")
+                .tag("tool", "query_status").counter().count());
     }
 
     @Test
     void queryStatus_shouldRejectMissingIdentityBeforeCallingVideoService() {
         VideoPrivateClient client = mock(VideoPrivateClient.class);
-        VideoProcessingTools tools = new VideoProcessingTools(client);
+        VideoProcessingTools tools = new VideoProcessingTools(client, new SimpleMeterRegistry());
 
         assertThrows(IllegalStateException.class,
                 () -> tools.queryVideoProcessingStatus(702L, new ToolContext(Map.of())));
@@ -49,7 +54,7 @@ class VideoProcessingToolsTest {
     @Test
     void queryStatus_shouldReturnGenericNoAccessMessageForVideoClient4xx() {
         VideoPrivateClient client = mock(VideoPrivateClient.class);
-        VideoProcessingTools tools = new VideoProcessingTools(client);
+        VideoProcessingTools tools = new VideoProcessingTools(client, new SimpleMeterRegistry());
         when(client.getCreatorVideoProcessingStatus(102L, 702L))
                 .thenThrow(new feign.FeignException.BadRequest(
                         "video not accessible",
@@ -67,7 +72,7 @@ class VideoProcessingToolsTest {
     @Test
     void diagnoseFailure_shouldUseRuleMatchedCategoryWithoutReturningRawError() {
         VideoPrivateClient client = mock(VideoPrivateClient.class);
-        VideoProcessingTools tools = new VideoProcessingTools(client);
+        VideoProcessingTools tools = new VideoProcessingTools(client, new SimpleMeterRegistry());
         when(client.getCreatorVideoProcessingStatus(103L, 703L)).thenReturn(Result.success(
                 new VideoProcessingStatusResponse(703L, Video.VideoStatus.REJECTED,
                         VideoProcessingTask.ProcessingStatus.FAILED, 1, null,
@@ -85,7 +90,7 @@ class VideoProcessingToolsTest {
     @Test
     void diagnoseFailure_shouldRefuseToInferWhenTaskIsNotFailed() {
         VideoPrivateClient client = mock(VideoPrivateClient.class);
-        VideoProcessingTools tools = new VideoProcessingTools(client);
+        VideoProcessingTools tools = new VideoProcessingTools(client, new SimpleMeterRegistry());
         when(client.getCreatorVideoProcessingStatus(104L, 704L)).thenReturn(Result.success(
                 new VideoProcessingStatusResponse(704L, Video.VideoStatus.PUBLISHED,
                         VideoProcessingTask.ProcessingStatus.SUCCEEDED, 0, null, null, null)));
