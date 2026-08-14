@@ -4,6 +4,8 @@ import com.jiake.jk.common.trace.TraceContext;
 import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.pojo.mq.VideoPublishedMessage;
 import com.jiake.jk.video.service.FollowFeedService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -20,10 +22,19 @@ public class VideoPublishedInboxConsumer {
 
     private final FollowFeedService followFeedService;
     private final RabbitTemplate rabbitTemplate;
+    private final Counter retryCounter;
+    private final Counter deadLetterCounter;
 
-    public VideoPublishedInboxConsumer(FollowFeedService followFeedService, RabbitTemplate rabbitTemplate) {
+    public VideoPublishedInboxConsumer(FollowFeedService followFeedService, RabbitTemplate rabbitTemplate,
+                                      MeterRegistry meterRegistry) {
         this.followFeedService = followFeedService;
         this.rabbitTemplate = rabbitTemplate;
+        this.retryCounter = Counter.builder("sw.video.publish.inbox.retry")
+                .description("Video publish inbox messages moved to the delayed retry queue")
+                .register(meterRegistry);
+        this.deadLetterCounter = Counter.builder("sw.video.publish.inbox.dead.letter")
+                .description("Video publish inbox messages exhausted retry attempts")
+                .register(meterRegistry);
     }
 
     @RabbitListener(queues = RabbitMQConstant.VIDEO_PUBLISH_INBOX_QUEUE,
@@ -36,6 +47,7 @@ public class VideoPublishedInboxConsumer {
         } catch (Exception exception) {
             int nextAttempt = retryCount == null ? 1 : retryCount + 1;
             if (nextAttempt >= MAX_ATTEMPTS) {
+                deadLetterCounter.increment();
                 log.warn("Follow-feed fanout exhausted broker-managed retries and will be dead-lettered, videoId={}, traceId={}, attempts={}",
                         message.getVideoId(), message.getTraceId(), nextAttempt);
                 throw new AmqpRejectAndDontRequeueException("关注流扇出失败，已转入死信队列", exception);
@@ -45,6 +57,7 @@ public class VideoPublishedInboxConsumer {
                         retryMessage.getMessageProperties().setHeader(RETRY_COUNT_HEADER, nextAttempt);
                         return retryMessage;
                     });
+            retryCounter.increment();
             log.warn("Follow-feed fanout failed and was moved to broker retry queue, videoId={}, traceId={}, nextAttempt={}",
                     message.getVideoId(), message.getTraceId(), nextAttempt);
         } finally {

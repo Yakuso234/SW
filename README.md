@@ -199,7 +199,7 @@ GET /video-processor/api/actuator/health
 GET /video-processor/api/actuator/prometheus
 ```
 
-业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds` 和 `sw_video_transcoding_failures_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。Prometheus 抓取配置与 Grafana 看板已版本化；现场采样和故障演练以 Prometheus Targets 全部按实际运行状态确认后记录。
+业务指标包括 `sw_outbox_delivery_seconds`、`sw_outbox_delivery_failures_total`、`sw_video_transcoding_seconds`、`sw_video_transcoding_failures_total`、`sw_video_publish_inbox_retry_total` 和 `sw_video_publish_inbox_dead_letter_total`。日志默认带有 `[traceId]`，可与上述指标及业务日志联合排障。Prometheus 抓取配置与 Grafana 看板已版本化；现场采样和故障演练以 Prometheus Targets 全部按实际运行状态确认后记录。
 
 本机启动可观测组件：
 

@@ -2,6 +2,7 @@ package com.jiake.jk.video.consumer;
 
 import com.jiake.jk.video.pojo.mq.VideoPublishedMessage;
 import com.jiake.jk.video.service.FollowFeedService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.amqp.core.MessagePostProcessor;
@@ -22,7 +23,8 @@ class VideoPublishedInboxConsumerTest {
     void consume_shouldFanoutOnceWhenDependencyIsAvailable() {
         FollowFeedService followFeedService = mock(FollowFeedService.class);
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-        VideoPublishedInboxConsumer consumer = new VideoPublishedInboxConsumer(followFeedService, rabbitTemplate);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        VideoPublishedInboxConsumer consumer = consumer(followFeedService, rabbitTemplate, meterRegistry);
         VideoPublishedMessage message = message();
 
         assertDoesNotThrow(() -> consumer.consume(message, null));
@@ -35,7 +37,8 @@ class VideoPublishedInboxConsumerTest {
     void consume_shouldMoveToBrokerRetryQueueWhenAttemptBudgetRemains() {
         FollowFeedService followFeedService = mock(FollowFeedService.class);
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-        VideoPublishedInboxConsumer consumer = new VideoPublishedInboxConsumer(followFeedService, rabbitTemplate);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        VideoPublishedInboxConsumer consumer = consumer(followFeedService, rabbitTemplate, meterRegistry);
         VideoPublishedMessage message = message();
         doThrow(new IllegalStateException("user service unavailable"))
                 .when(followFeedService).fanoutPublishedVideo(message);
@@ -44,13 +47,16 @@ class VideoPublishedInboxConsumerTest {
 
         verify(rabbitTemplate).convertAndSend(eq(""), eq("video.publish.inbox.retry.queue"), eq(message),
                 any(MessagePostProcessor.class));
+        org.junit.jupiter.api.Assertions.assertEquals(1.0,
+                meterRegistry.get("sw.video.publish.inbox.retry").counter().count());
     }
 
     @Test
     void consume_shouldRejectForFinalDeadLetterAfterAttemptBudgetIsExhausted() {
         FollowFeedService followFeedService = mock(FollowFeedService.class);
         RabbitTemplate rabbitTemplate = mock(RabbitTemplate.class);
-        VideoPublishedInboxConsumer consumer = new VideoPublishedInboxConsumer(followFeedService, rabbitTemplate);
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+        VideoPublishedInboxConsumer consumer = consumer(followFeedService, rabbitTemplate, meterRegistry);
         VideoPublishedMessage message = message();
         doThrow(new IllegalStateException("user service unavailable"))
                 .when(followFeedService).fanoutPublishedVideo(message);
@@ -58,6 +64,8 @@ class VideoPublishedInboxConsumerTest {
         assertThrows(AmqpRejectAndDontRequeueException.class, () -> consumer.consume(message, 2));
 
         verify(rabbitTemplate, never()).convertAndSend(any(), any(), any(), any(MessagePostProcessor.class));
+        org.junit.jupiter.api.Assertions.assertEquals(1.0,
+                meterRegistry.get("sw.video.publish.inbox.dead.letter").counter().count());
     }
 
     private VideoPublishedMessage message() {
@@ -66,5 +74,10 @@ class VideoPublishedInboxConsumerTest {
         message.setCreatorId(2001L);
         message.setTraceId("publish-inbox-test-trace");
         return message;
+    }
+
+    private VideoPublishedInboxConsumer consumer(FollowFeedService followFeedService, RabbitTemplate rabbitTemplate,
+                                                  SimpleMeterRegistry meterRegistry) {
+        return new VideoPublishedInboxConsumer(followFeedService, rabbitTemplate, meterRegistry);
     }
 }

@@ -37,6 +37,24 @@
       "targets": [{"expr": "sum(increase(sw_video_transcoding_failures_total[$__rate_interval]))", "legendFormat": "transcoding failures"}],
       "title": "视频转码失败次数",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "sw-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [{"expr": "sum(increase(sw_video_publish_inbox_retry_total[$__rate_interval]))", "legendFormat": "delayed retries"}],
+      "title": "关注流延迟重试次数",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "sw-prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "targets": [{"expr": "sum(increase(sw_video_publish_inbox_dead_letter_total[$__rate_interval]))", "legendFormat": "dead letters"}],
+      "title": "关注流最终死信次数",
+      "type": "timeseries"
     }
   ],
   "schemaVersion": 39,
@@ -45,5 +63,5 @@
   "time": {"from": "now-1h", "to": "now"},
   "title": "SW 核心链路可观测性",
   "uid": "sw-core-observability",
-  "version": 1
+  "version": 2
 }
