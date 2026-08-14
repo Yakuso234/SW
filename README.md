@@ -76,6 +76,7 @@ flowchart LR
 - 状态机单测与 MySQL、Redis、RabbitMQ、MinIO 集成测试。
 - 完整 E2E 脚本以及重复消息、服务不可用等故障演练。
 - Actuator、Micrometer、Prometheus/Grafana 指标和链路追踪。
+- GitHub Actions 核心回归：Gateway 安全与限流、视频 Outbox/状态机/消费、AI 工具权限与诊断规则。
 - 可复现压测报告：固定硬件、数据规模、脚本、P50/P95/P99、吞吐量与错误率。
 
 每条简历亮点都需要对应代码、测试、指标、故障案例、架构图和演示步骤。
@@ -88,8 +89,8 @@ flowchart LR
 | `user` | 用户身份、资料和关注关系 |
 | `video` | 上传任务、视频状态、Outbox、发布与关注流 |
 | `video-processor` | RabbitMQ 消费、FFmpeg 处理、重试与结果回写 |
-| `ai` | 对话编排、RAG、记忆和流式响应 |
-| `mcp-server` | AI 调用真实业务能力的内部工具适配层 |
+| `ai` | SSE 对话编排、受权限约束的状态查询与失败诊断 |
+| `mcp-server` | 预留的工具适配模块，不属于当前完成能力 |
 | `common` | 统一响应、异常、鉴权上下文和基础组件 |
 
 其他模块保留为后续扩展，不作为当前核心完成度依据。
@@ -128,6 +129,14 @@ docker compose up -d mysql redis rabbitmq minio nacos
 
 ```powershell
 mvn -DskipTests install
+```
+
+### 核心回归
+
+公开仓库的 GitHub Actions 使用 JDK 21 自动执行下列主线回归，不依赖个人密钥或 Docker 中间件：
+
+```powershell
+mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlockFilterTest,GatewayRateLimitServiceTest,VideoServiceImplTest,OutboxMessagePublisherTest,VideoProcessingTaskServiceImplTest,VideoConsumerTest,CreatorAssistantServiceImplTest,VideoProcessingToolsTest" -pl gateway,video/video-core,video-processor,ai -am test
 ```
 
 ### 本机服务启动顺序

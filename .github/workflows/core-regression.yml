@@ -1,0 +1,38 @@
+name: Core Regression
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: core-regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-regression:
+    name: Java 21 core regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Run gateway, async video pipeline and AI regressions
+        run: >-
+          mvn -B -ntp
+          -Dsurefire.failIfNoSpecifiedTests=false
+          -Dtest=InternalRouteBlockFilterTest,GatewayRateLimitServiceTest,VideoServiceImplTest,OutboxMessagePublisherTest,VideoProcessingTaskServiceImplTest,VideoConsumerTest,CreatorAssistantServiceImplTest,VideoProcessingToolsTest
+          -pl gateway,video/video-core,video-processor,ai -am test
