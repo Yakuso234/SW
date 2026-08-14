@@ -20,3 +20,8 @@ scrape_configs:
     metrics_path: /video-processor/api/actuator/prometheus
     static_configs:
       - targets: [host.docker.internal:10092]
+
+  - job_name: sw-ai
+    metrics_path: /ai/api/actuator/prometheus
+    static_configs:
+      - targets: [host.docker.internal:10094]

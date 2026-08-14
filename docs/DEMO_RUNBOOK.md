@@ -25,11 +25,12 @@ docker compose --profile observability up -d prometheus grafana
 Gateway:         http://localhost:10086/actuator/health
 Video:           http://localhost:10091/video/api/actuator/health
 Video Processor: http://localhost:10092/video-processor/api/actuator/health
+AI:              http://localhost:10094/ai/api/actuator/health
 Prometheus:      http://localhost:9090/-/ready
 Grafana:         http://localhost:3000
 ```
 
-Prometheus Targets 中 Gateway、Video、Video Processor 应为 `UP`。如未启动 AI，不把 SSE 工具视为本次现场可演示能力。
+Prometheus Targets 中 Gateway、Video、Video Processor 应为 `UP`；启动 AI 后，`sw-ai` 也应为 `UP`。如未启动 AI，不把 SSE 工具视为本次现场可演示能力。
 
 ## 2. 成功上传：异步处理主链路
 
