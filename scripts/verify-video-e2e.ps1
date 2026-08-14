@@ -54,6 +54,8 @@ try {
         throw 'Test cover generation failed.'
     }
 
+    # 基线从预签名请求开始计时，排除本地生成隔离媒体与封面的成本。
+    $processingStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $headers = @{ id = '900001'; 'X-Trace-Id' = $TraceId }
     $presign = Invoke-RestMethod -Uri "$VideoServiceUrl/me/presign-put-object" -Method Post -Headers $headers -TimeoutSec 20
     if ($presign.code -ne 1 -or $null -eq $presign.data) {
@@ -77,6 +79,7 @@ try {
     do {
         $result = docker exec -e "MYSQL_PWD=$MysqlPassword" $MysqlContainer mysql -uroot -D yh -Nse "SELECT CONCAT(v.status, '|', t.status, '|', o.status) FROM video v JOIN video_processing_task t ON t.video_id=v.id JOIN message_outbox o ON o.business_id=v.id WHERE v.id=$videoId ORDER BY o.id DESC LIMIT 1;"
         if ($result -eq '5|2|1') {
+            $processingStopwatch.Stop()
             [PSCustomObject]@{
                 VideoId = $videoId
                 UploadTaskId = $taskId
@@ -85,6 +88,7 @@ try {
                 ProcessingTaskStatus = 'SUCCEEDED'
                 OutboxStatus = 'SUCCESS'
                 SourceBytes = (Get-Item -LiteralPath $sourceVideo).Length
+                SubmissionToPublishedMillis = $processingStopwatch.ElapsedMilliseconds
             }
             return
         }

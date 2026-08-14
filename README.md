@@ -184,6 +184,14 @@ POST /video/api/private/processing/{videoId}/recover-expired
 
 视频发布后的关注流扇出使用独立 Inbox 队列。User Service 等下游短暂不可用时，消息会携带尝试次数进入 `video.publish.inbox.retry.queue`，在 Broker 持久化等待 5 秒后回流主队列；第 3 次仍失败才进入 `video.publish.inbox.dead.queue`。该策略避免消费者高频重试，也不会影响视频已发布的主状态机。
 
+固定环境的端到端延迟基线（串行、1 次预热 + 5 次测量）可使用：
+
+```powershell
+.\scripts\measure-video-e2e.ps1
+```
+
+该脚本从预签名请求开始，到视频达到 `PUBLISHED / SUCCEEDED / Outbox SUCCESS` 停止计时，排除本地生成测试媒体的时间，并输出最小值、P50、P95、最大值及每条 TraceId。它只用于同一台机器、相同 Docker/服务配置下的回归对比，不能据此宣称生产吞吐或通用 TPS。
+
 ### 链路排障
 
 所有 Servlet 请求会读取或生成 `X-Trace-Id`，并在响应头回传；Feign 调用自动透传该请求头。视频发布消息会把 TraceId 写入 Outbox 消息体，Processor 消费时恢复同一 TraceId 后再调用 Video Service。因此可使用响应头中的 TraceId 串联上传提交、Outbox、Processor 和处理结果回写日志。
