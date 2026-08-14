@@ -4,9 +4,11 @@ import com.jiake.jk.common.response.Result;
 import com.jiake.jk.video.service.VideoService;
 import com.jiake.jk.video.service.VideoProcessingTaskService;
 import com.jiake.jk.video.pojo.entity.Video;
+import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +36,12 @@ public class VideoPrivateController {
                                                   @RequestParam("expectedStatus") Video.VideoStatus expectedStatus,
                                                   @RequestParam("targetStatus") Video.VideoStatus targetStatus) {
         return Result.success(videoService.transitionVideoStatus(videoId, expectedStatus, targetStatus));
+    }
+
+    @GetMapping("/creator/{creatorId}/processing/{videoId}")
+    public Result<VideoProcessingStatusResponse> getCreatorVideoProcessingStatus(@PathVariable Long creatorId,
+                                                                                   @PathVariable Long videoId) {
+        return Result.success(videoService.getVideoProcessingStatus(creatorId, videoId));
     }
 
     @PutMapping("/processing/{videoId}/claim")

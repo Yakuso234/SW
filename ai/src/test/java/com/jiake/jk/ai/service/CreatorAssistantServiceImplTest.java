@@ -2,6 +2,7 @@ package com.jiake.jk.ai.service;
 
 import com.jiake.jk.ai.properties.CreatorAssistantProperties;
 import com.jiake.jk.ai.service.impl.CreatorAssistantServiceImpl;
+import com.jiake.jk.ai.tool.VideoProcessingTools;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
 import reactor.test.StepVerifier;
@@ -12,7 +13,8 @@ class CreatorAssistantServiceImplTest {
 
     @Test
     void stream_shouldRejectBlankMessageBeforeCallingModel() {
-        CreatorAssistantServiceImpl service = new CreatorAssistantServiceImpl(mock(ChatClient.class), properties(true));
+        CreatorAssistantServiceImpl service = new CreatorAssistantServiceImpl(
+                mock(ChatClient.class), properties(true), mock(VideoProcessingTools.class));
 
         StepVerifier.create(service.stream(900001L, "trace-creator-001", " "))
                 .expectNextMatches(event -> "error".equals(event.event()) && event.data().contains("不能为空"))
@@ -21,7 +23,8 @@ class CreatorAssistantServiceImplTest {
 
     @Test
     void stream_shouldRejectWhenFeatureIsDisabled() {
-        CreatorAssistantServiceImpl service = new CreatorAssistantServiceImpl(mock(ChatClient.class), properties(false));
+        CreatorAssistantServiceImpl service = new CreatorAssistantServiceImpl(
+                mock(ChatClient.class), properties(false), mock(VideoProcessingTools.class));
 
         StepVerifier.create(service.stream(900001L, "trace-creator-002", "给我三个标题"))
                 .expectNextMatches(event -> "error".equals(event.event()) && event.data().contains("未启用"))

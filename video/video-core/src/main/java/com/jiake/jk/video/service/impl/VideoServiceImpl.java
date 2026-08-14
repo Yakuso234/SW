@@ -618,6 +618,32 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    public VideoProcessingStatusResponse getVideoProcessingStatus(Long userId, Long videoId) {
+        Video video = videoMapper.selectOne(new LambdaQueryWrapper<Video>()
+                .select(Video::getId, Video::getStatus)
+                .eq(Video::getId, videoId)
+                .eq(Video::getCreatorId, userId));
+        if (video == null) {
+            throw new YHClientException("视频不存在或无访问权限");
+        }
+
+        VideoProcessingTask task = videoProcessingTaskMapper.selectOne(
+                new LambdaQueryWrapper<VideoProcessingTask>()
+                        .select(VideoProcessingTask::getStatus,
+                                VideoProcessingTask::getRetryCount,
+                                VideoProcessingTask::getLeaseExpireAt,
+                                VideoProcessingTask::getErrorMessage,
+                                VideoProcessingTask::getUpdatedAt)
+                        .eq(VideoProcessingTask::getVideoId, videoId));
+        if (task == null) {
+            return new VideoProcessingStatusResponse(videoId, video.getStatus(), null,
+                    null, null, null, null);
+        }
+        return new VideoProcessingStatusResponse(videoId, video.getStatus(), task.getStatus(),
+                task.getRetryCount(), task.getLeaseExpireAt(), task.getErrorMessage(), task.getUpdatedAt());
+    }
+
+    @Override
     public List<GetRejectedVideoResponse> getRejectedVideo(Long userId, Long lastMinId) {
         return videoMapper.selectRejectedVideoByUserId(userId, lastMinId)
                 .stream()

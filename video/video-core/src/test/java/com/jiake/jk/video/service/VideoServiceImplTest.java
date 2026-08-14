@@ -21,6 +21,7 @@ import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
 import com.jiake.jk.video.pojo.response.PublishedFeedResponse;
+import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
 import com.jiake.jk.video.service.impl.VideoServiceImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -38,6 +39,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -191,6 +193,39 @@ class VideoServiceImplTest {
         org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> service.getPublishedFeed(null, "not-a-valid-cursor", 10));
         verifyNoInteractions(videoMultiMapper);
+    }
+
+    @Test
+    void getVideoProcessingStatus_shouldReturnOnlyCreatorOwnedTaskFacts() {
+        VideoServiceImpl service = newService();
+        Video video = new Video();
+        video.setId(701L);
+        video.setStatus(Video.VideoStatus.PROCESSING);
+        VideoProcessingTask task = new VideoProcessingTask();
+        task.setStatus(VideoProcessingTask.ProcessingStatus.PROCESSING);
+        task.setRetryCount(2);
+        task.setErrorMessage("ffmpeg retrying");
+        when(videoMapper.selectOne(any())).thenReturn(video);
+        when(videoProcessingTaskMapper.selectOne(any())).thenReturn(task);
+
+        VideoProcessingStatusResponse response = service.getVideoProcessingStatus(101L, 701L);
+
+        assertEquals(701L, response.videoId());
+        assertEquals(Video.VideoStatus.PROCESSING, response.videoStatus());
+        assertEquals(VideoProcessingTask.ProcessingStatus.PROCESSING, response.processingStatus());
+        assertEquals(2, response.retryCount());
+        verify(videoMapper).selectOne(argThat(wrapper -> wrapper.getSqlSegment().contains("creator_id")));
+        verify(videoProcessingTaskMapper).selectOne(any());
+    }
+
+    @Test
+    void getVideoProcessingStatus_shouldRejectMissingOrForeignVideoWithoutQueryingTask() {
+        VideoServiceImpl service = newService();
+        when(videoMapper.selectOne(any())).thenReturn(null);
+
+        assertThrows(RuntimeException.class, () -> service.getVideoProcessingStatus(101L, 702L));
+
+        verify(videoProcessingTaskMapper, never()).selectOne(any());
     }
 
     private VideoServiceImpl newService() {

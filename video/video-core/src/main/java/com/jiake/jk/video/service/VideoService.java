@@ -40,6 +40,8 @@ public interface VideoService {
 
     List<GetProcessingVideoResponse> getProcessingVideo(Long userId, Long lastMinId);
 
+    VideoProcessingStatusResponse getVideoProcessingStatus(Long userId, Long videoId);
+
     List<GetRejectedVideoResponse> getRejectedVideo(Long userId, Long lastMinId);
 
     List<GetLikeVideoResponse> getLikeVideo(Long userId, Long lastMinId);

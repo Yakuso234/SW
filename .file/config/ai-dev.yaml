@@ -33,6 +33,13 @@ spring:
     mcp:
       client:
         enabled: false
+  cloud:
+    openfeign:
+      client:
+        config:
+          videoService:
+            connectTimeout: 1000
+            readTimeout: 2500
 sw:
   ai:
     legacy:

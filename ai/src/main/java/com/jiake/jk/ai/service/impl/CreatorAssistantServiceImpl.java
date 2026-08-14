@@ -2,6 +2,7 @@ package com.jiake.jk.ai.service.impl;
 
 import com.jiake.jk.ai.properties.CreatorAssistantProperties;
 import com.jiake.jk.ai.service.CreatorAssistantService;
+import com.jiake.jk.ai.tool.VideoProcessingTools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -9,30 +10,35 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 /**
- * A deliberately small AI capability inside the microservice project.
- * It produces advice only. Reads and writes to SW business services are added in later bounded iterations.
+ * A bounded AI capability inside SW: creation advice plus permission-scoped read tools.
+ * The service does not own video data and cannot execute write commands.
  */
 @Slf4j
 @Service
 public class CreatorAssistantServiceImpl implements CreatorAssistantService {
 
     private static final String SYSTEM_PROMPT = """
-            你是 SW 短视频平台的创作者运营助手。你的职责是协助创作者优化标题、简介、标签、选题方向和发布节奏。
-            只给出可执行的运营建议，语言简洁，优先提供 2 到 4 个候选方案及理由。
-            当前版本没有读取视频处理状态、平台实时数据或用户私有资料的能力：不要声称查询过数据，不要编造审核结果、播放量、违规规则或处理进度。
-            你不能替用户发布、删除、修改视频或执行任何写操作。遇到需要真实状态、故障诊断或平台规则的问题，要明确说明将由后续受权限约束的业务工具处理。
+            你是 SW 短视频平台的创作者运营助手，协助创作者优化标题、简介、标签、选题方向和发布节奏。
+            给出简洁、可执行的建议，优先提供 2 到 4 个候选方案及理由。
+            当用户提供明确 videoId 并询问上传、转码、审核或处理进度时，必须调用 query_video_processing_status 获取真实事实；没有 videoId 时先请用户提供。工具结果是唯一的状态事实来源，禁止猜测或编造。
+            对工具字段只能按其字面含义转述：retryCount 仅表示计数，除非工具明确提供原因，否则不得推断发生过异常、自动恢复、审核结论或任何未返回的过程事实。
+            你不能替用户发布、删除、修改视频或执行任何写操作。播放量、违规规则与故障深度诊断当前仍没有工具，不能编造。
             """;
 
     private final ChatClient creatorAssistantChatClient;
     private final CreatorAssistantProperties properties;
+    private final VideoProcessingTools videoProcessingTools;
 
     public CreatorAssistantServiceImpl(@Qualifier("creatorAssistantChatClient") ChatClient creatorAssistantChatClient,
-                                       CreatorAssistantProperties properties) {
+                                       CreatorAssistantProperties properties,
+                                       VideoProcessingTools videoProcessingTools) {
         this.creatorAssistantChatClient = creatorAssistantChatClient;
         this.properties = properties;
+        this.videoProcessingTools = videoProcessingTools;
     }
 
     @Override
@@ -46,12 +52,15 @@ public class CreatorAssistantServiceImpl implements CreatorAssistantService {
         if (message.length() > properties.getMaxMessageLength()) {
             return Flux.just(new StreamEvent("error", "message 超过长度限制"));
         }
+
         log.info("Creator assistant stream started, userId={}, traceId={}", userId, traceId);
         return Flux.concat(
                         Flux.just(new StreamEvent("meta", "traceId=" + traceId)),
                         creatorAssistantChatClient.prompt()
                                 .system(SYSTEM_PROMPT)
                                 .user(message)
+                                .tools(videoProcessingTools)
+                                .toolContext(Map.of("creatorUserId", userId, "traceId", traceId))
                                 .stream()
                                 .content()
                                 .map(token -> new StreamEvent("delta", token))
