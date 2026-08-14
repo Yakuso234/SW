@@ -60,6 +60,17 @@ public class RabbitMQConfig {
         return factory;
     }
 
+    @Bean("videoPublishInboxContainerFactory")
+    public SimpleRabbitListenerContainerFactory videoPublishInboxContainerFactory(
+            ConnectionFactory connectionFactory, MessageConverter jsonMessageConverter) {
+        SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
+        factory.setConnectionFactory(connectionFactory);
+        factory.setMessageConverter(jsonMessageConverter);
+        // 最终异常由消费者显式 reject；此处兜底避免容器默认无限 requeue。
+        factory.setDefaultRequeueRejected(false);
+        return factory;
+    }
+
     @Bean
     public Queue queue() {
         return QueueBuilder.durable(RabbitMQConstant.VIDEO_REVIEW_QUEUE)
@@ -78,6 +89,18 @@ public class RabbitMQConfig {
         return QueueBuilder.durable(RabbitMQConstant.VIDEO_PUBLISH_INBOX_QUEUE)
                 .deadLetterExchange("")
                 .deadLetterRoutingKey(RabbitMQConstant.VIDEO_PUBLISH_INBOX_DEAD_QUEUE)
+                .build();
+    }
+
+    /**
+     * 关注流扇出短暂失败时由 Broker 持久化等待，TTL 到期后回流主队列，而不是占用消费者线程重试。
+     */
+    @Bean
+    public Queue videoPublishInboxRetryQueue() {
+        return QueueBuilder.durable(RabbitMQConstant.VIDEO_PUBLISH_INBOX_RETRY_QUEUE)
+                .ttl(5_000)
+                .deadLetterExchange("")
+                .deadLetterRoutingKey(RabbitMQConstant.VIDEO_PUBLISH_INBOX_QUEUE)
                 .build();
     }
 

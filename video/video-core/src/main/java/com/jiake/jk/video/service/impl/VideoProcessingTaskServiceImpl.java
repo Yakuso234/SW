@@ -22,6 +22,7 @@ import org.springframework.amqp.core.QueueInformation;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -35,7 +36,13 @@ import java.util.List;
 public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskService {
 
     private static final int RECOVERY_BATCH_SIZE = 100;
-    private static final int LEASE_MINUTES = 10;
+    private static final long DEFAULT_LEASE_SECONDS = 600;
+
+    /**
+     * 生产默认保留 10 分钟租约；仅本地故障演练可用运行参数缩短等待时间。
+     */
+    @Value("${sw.video-processing.lease-seconds:600}")
+    private long leaseSeconds = DEFAULT_LEASE_SECONDS;
 
     private final VideoProcessingTaskMapper videoProcessingTaskMapper;
     private final VideoMapper videoMapper;
@@ -57,7 +64,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
 
         int taskClaimed = videoProcessingTaskMapper.update(new LambdaUpdateWrapper<VideoProcessingTask>()
                 .set(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)
-                .set(VideoProcessingTask::getLeaseExpireAt, LocalDateTime.now().plusMinutes(LEASE_MINUTES))
+                .set(VideoProcessingTask::getLeaseExpireAt, LocalDateTime.now().plusSeconds(Math.max(1, leaseSeconds)))
                 .setSql("retry_count = retry_count + 1")
                 .eq(VideoProcessingTask::getVideoId, videoId)
                 .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PENDING));

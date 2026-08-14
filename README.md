@@ -171,6 +171,8 @@ mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlock
 --sw.video-processing.fault-injection.before-complete-callback-delay-ms=15000
 ```
 
+默认处理租约为 600 秒。为缩短**仅本地**演练等待，可在 Video Service 临时增加 `--sw.video-processing.lease-seconds=20 --sw.video-processing.recovery-delay-ms=3000`；演练结束必须移除这些参数并恢复默认租约。
+
 DLQ 运维入口（仅服务内网调用，当前不经 Gateway 暴露）：
 
 ```text
@@ -179,6 +181,8 @@ POST /video/api/private/processing/{videoId}/recover-expired
 ```
 
 概览接口返回主队列/DLQ 消息数、处理中任务数和失败任务数。人工恢复接口只接受“租约已过期且仍为 `PROCESSING`”的视频任务；它会创建新的 Outbox 补偿消息，不会直接重放 DLQ 中的旧消息。
+
+视频发布后的关注流扇出使用独立 Inbox 队列。User Service 等下游短暂不可用时，消息会携带尝试次数进入 `video.publish.inbox.retry.queue`，在 Broker 持久化等待 5 秒后回流主队列；第 3 次仍失败才进入 `video.publish.inbox.dead.queue`。该策略避免消费者高频重试，也不会影响视频已发布的主状态机。
 
 ### 链路排障
 
