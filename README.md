@@ -154,6 +154,14 @@ mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlock
 
 脚本会生成临时 2 秒 MP4，验证预签名上传、Outbox、RabbitMQ、FFmpeg 转码与抽帧、MinIO 落盘及状态回写；只写入本地开发数据。
 
+失败链路验收（本地开发环境）：
+
+```powershell
+.\scripts\verify-video-failure-e2e.ps1
+```
+
+脚本会上传一个扩展名合法、内容故意无效的隔离测试文件，真实验证 FFmpeg 异常如何回写为 `REJECTED / FAILED / SUCCESS`，并可用于核对 Prometheus 指标与创作助手的失败诊断；不会修改已有视频数据。
+
 消息死信队列配置首次启用时：先停止 Video Service 与 Video Processor，确认 `video.review.queue` 没有积压后执行 `./scripts/refresh-video-review-queue.ps1`，再启动两个服务。脚本拒绝删除有积压的队列。
 
 租约恢复故障演练（仅本地）：在 Video Processor 的 IDEA 运行参数中临时增加下列参数，会在转码完成、调用 Video Service 回写前暂停 15 秒。此时停止 Video Service，可稳定验证消息进入死信队列、处理租约到期后由 Outbox 补偿并重新完成处理；正常运行不要配置这两个参数。
