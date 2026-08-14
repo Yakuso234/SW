@@ -19,7 +19,7 @@ flowchart LR
     P --> V
     V --> R["Redis 关注流"]
     G --> A["AI Service"]
-    A --> T["MCP / Feign 业务工具"]
+    A --> T["Feign 业务工具"]
     T --> V
 ```
 
@@ -41,18 +41,17 @@ flowchart LR
 - 核心模块已在 Java 21 下编译通过。
 - Docker 本地基础环境可运行：MySQL、Redis、RabbitMQ、MinIO、Nacos。
 - Gateway、User、Video、Video Processor 可通过 IDEA 连接本地中间件运行。
-- 已跑通预签名上传、MinIO PUT、创建视频、写入 Outbox、发送 RabbitMQ 消息和 Processor 消费。
+- 已跑通真实本地视频链路：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
+- AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；真实调用可携带 TraceId 追踪到 Video Service。
 
-正在重构：
+后续工程化工作：
 
-- 视频处理状态机，禁止上传后直接进入已发布状态。
-- Outbox 补偿、发布确认、指数退避、死信队列和人工重放。
-- 消费幂等、真实 FFmpeg 转码/封面抽帧与处理结果回写。
-- AI 助手对真实视频服务的工具调用、规则 RAG、权限校验和失败降级。
+- 将已有真实链路沉淀为自动化集成测试、可复现故障演练与前后端联调脚本。
+- 完善 Prometheus 抓取、Grafana 面板和固定环境下的压测报告。
+- 仅在真实运营需求明确后，再评估规则 RAG 或更多只读工具；当前不把 MCP、复杂记忆或多 Agent 作为已完成能力。
 
 尚未作为完成能力对外描述：
 
-- Processor 当前消费逻辑仍需替换为完整的视频处理流水线。
 - Product、Order、Live、Chat、Admin 等存量模块不属于当前简历主线。
 - 所有性能结论需要在固定环境中重新压测后才能写入简历。
 
@@ -68,9 +67,9 @@ flowchart LR
 ### 2. AI 创作者运营助手
 
 - Spring AI Tool Calling 与 SSE 流式响应。
-- 查询视频处理进度、诊断失败原因、查询作品数据。
-- 平台规则 RAG、标题/标签/简介生成、人工工单创建。
-- 用户权限校验、模型超时降级、TraceId 与固定问题集评测。
+- 查询视频处理进度、基于服务端失败摘要诊断失败原因；均受当前创作者身份约束。
+- 标题/标签/简介等创作建议只生成文本，不自动修改视频或执行写操作。
+- 用户权限二次校验、模型超时降级、TraceId 与工具调用审计。
 
 ### 3. 可验证的工程能力
 

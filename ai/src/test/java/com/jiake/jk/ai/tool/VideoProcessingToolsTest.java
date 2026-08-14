@@ -63,4 +63,37 @@ class VideoProcessingToolsTest {
         assertTrue(response.contains("可访问处理记录"));
         assertTrue(!response.contains("暂不可用"));
     }
+
+    @Test
+    void diagnoseFailure_shouldUseRuleMatchedCategoryWithoutReturningRawError() {
+        VideoPrivateClient client = mock(VideoPrivateClient.class);
+        VideoProcessingTools tools = new VideoProcessingTools(client);
+        when(client.getCreatorVideoProcessingStatus(103L, 703L)).thenReturn(Result.success(
+                new VideoProcessingStatusResponse(703L, Video.VideoStatus.REJECTED,
+                        VideoProcessingTask.ProcessingStatus.FAILED, 1, null,
+                        "ffmpeg decode failed at C:\\\\private-work\\\\source.mp4", null)));
+
+        String response = tools.diagnoseVideoProcessingFailure(703L,
+                new ToolContext(Map.of("creatorUserId", 103L, "traceId", "tool-trace-003")));
+
+        assertTrue(response.contains("MEDIA_TRANSCODING"));
+        assertTrue(response.contains("媒体解析或转码关键词"));
+        assertTrue(!response.contains("private-work"));
+        verify(client).getCreatorVideoProcessingStatus(103L, 703L);
+    }
+
+    @Test
+    void diagnoseFailure_shouldRefuseToInferWhenTaskIsNotFailed() {
+        VideoPrivateClient client = mock(VideoPrivateClient.class);
+        VideoProcessingTools tools = new VideoProcessingTools(client);
+        when(client.getCreatorVideoProcessingStatus(104L, 704L)).thenReturn(Result.success(
+                new VideoProcessingStatusResponse(704L, Video.VideoStatus.PUBLISHED,
+                        VideoProcessingTask.ProcessingStatus.SUCCEEDED, 0, null, null, null)));
+
+        String response = tools.diagnoseVideoProcessingFailure(704L,
+                new ToolContext(Map.of("creatorUserId", 104L, "traceId", "tool-trace-004")));
+
+        assertTrue(response.contains("不是失败状态"));
+        assertTrue(response.contains("不能输出失败原因"));
+    }
 }
