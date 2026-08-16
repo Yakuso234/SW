@@ -20,6 +20,7 @@ import org.springframework.stereotype.Component;
 public class LikeInteraction extends InteractionTemplate {
     private final VideoUserLikeCache videoUserLikeCache;
     private final RabbitTemplate rabbitTemplate;
+    private final SnowflakeUtils snowflakeUtils;
 
     @Override
     protected void tryInteract(Long userId, Long videoId, InteractionStatus status) {
@@ -29,6 +30,11 @@ public class LikeInteraction extends InteractionTemplate {
             throw new YHClientException("异常操作！");
         }
 
+    }
+
+    @Override
+    protected Long nextEventId() {
+        return snowflakeUtils.nextId();
     }
 
     @Override

@@ -104,7 +104,7 @@
         join
         (
         select id, video_id
-        from video_user_favorite
+        from video_user_collections_item
         where user_id = #{userId}
         <if test="lastMinId != null">
             and id &lt; #{lastMinId}

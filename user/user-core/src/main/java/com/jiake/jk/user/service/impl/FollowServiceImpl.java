@@ -3,22 +3,15 @@ package com.jiake.jk.user.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jiake.jk.common.utils.AWSUtils;
 import com.jiake.jk.common.utils.SnowflakeUtils;
-import com.jiake.jk.user.mapper.ChatConversationMapper;
 import com.jiake.jk.user.mapper.FollowMapper;
-import com.jiake.jk.user.mapper.FriendMapper;
-import com.jiake.jk.user.pojo.entity.ChatConversation;
 import com.jiake.jk.user.pojo.entity.UserFollow;
-import com.jiake.jk.user.pojo.entity.UserFriend;
-import com.jiake.jk.user.pojo.entity.UserNewFriendMessage;
 import com.jiake.jk.user.pojo.response.FollowListResponse;
 import com.jiake.jk.user.pojo.response.FollowerIdPageResponse;
 import com.jiake.jk.user.pojo.response.FollowUserResponse;
 import com.jiake.jk.user.pojo.response.UserFriendResponse;
 import com.jiake.jk.user.service.FollowService;
-import com.jiake.jk.user.service.FriendService;
 import lombok.RequiredArgsConstructor;
 import org.apache.coyote.BadRequestException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,9 +24,6 @@ public class FollowServiceImpl implements FollowService {
 
     private final FollowMapper followMapper;
     private final SnowflakeUtils snowflakeUtils;
-    private final FriendMapper friendMapper;
-    private final FriendService friendService;
-    private final ChatConversationMapper chatConversationMapper;
     private final AWSUtils awsUtils;
 
 
@@ -56,31 +46,8 @@ public class FollowServiceImpl implements FollowService {
             return;
         }
 
-        // 查询是否有反向关系
-        if (!followMapper.selectIsRelationExist(followeeId, followerId)) {
-            return;
-        }
-
-        // 插入好友记录
-        UserFriend userFriend1 = new UserFriend();
-        userFriend1.setUserId(followerId);
-        userFriend1.setFriendId(followeeId);
-        UserFriend userFriend2 = new UserFriend();
-        userFriend2.setUserId(followeeId);
-        userFriend2.setFriendId(followerId);
-
-        friendService.saveBatch(List.of(userFriend1, userFriend2));
-
-        // 插入会话记录（临时做法）
-        ChatConversation chatConversation = new ChatConversation();
-        chatConversation.setUser1Id(followerId);
-        chatConversation.setUser2Id(followeeId);
-        chatConversation.setUser1UnreadCount(0);
-        chatConversation.setUser2UnreadCount(0);
-        chatConversation.setUpdatedTime(LocalDateTime.now());
-        chatConversation.setCreatedTime(LocalDateTime.now());
-
-        chatConversationMapper.insert(chatConversation);
+        // 关注关系只维护社交图谱。互关不应隐式创建聊天会话或好友记录，
+        // 否则 User 服务会把内容社交与 Chat 领域强耦合，且无法独立演进。
     }
 
     @Override
@@ -91,33 +58,7 @@ public class FollowServiceImpl implements FollowService {
             return;
         }
 
-        // 查询是否有反向关系
-        if (!followMapper.selectIsRelationExist(followeeId, followerId)) {
-            return;
-        }
-
-        // 有反向关系，删除好友记录
-        friendMapper.delete(new LambdaQueryWrapper<UserFriend>()
-                .and(wrapper -> wrapper
-                        .eq(UserFriend::getUserId, followerId)
-                        .eq(UserFriend::getFriendId, followeeId)
-                )
-                .or(wrapper -> wrapper
-                        .eq(UserFriend::getUserId, followeeId)
-                        .eq(UserFriend::getFriendId, followerId)
-                )
-        );
-
-        // 删除会话记录（临时做法）
-        chatConversationMapper.delete(new LambdaQueryWrapper<ChatConversation>()
-                .and(wrapper -> wrapper
-                        .eq(ChatConversation::getUser1Id, followerId)
-                        .eq(ChatConversation::getUser2Id, followeeId)
-                )
-                .or(wrapper -> wrapper.eq(ChatConversation::getUser1Id, followeeId)
-                        .eq(ChatConversation::getUser2Id, followerId)
-                )
-        );
+        // 取消关注同样只影响关注关系；聊天领域若需要解除关系，应由自身业务显式处理。
     }
 
     @Override

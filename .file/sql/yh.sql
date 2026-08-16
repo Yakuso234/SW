@@ -572,6 +572,14 @@ create table video_comment_event_consumption
 )
     comment '评论计数事件幂等表';
 
+create table video_interaction_event_consumption
+(
+    event_id    bigint unsigned                          not null comment '已消费的互动事件ID'
+        primary key,
+    consumed_at datetime default CURRENT_TIMESTAMP       not null comment '首次消费时间'
+)
+    comment '点赞收藏事件幂等表';
+
 create table video_user_like
 (
     id       bigint                 not null

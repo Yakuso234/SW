@@ -1,9 +1,7 @@
 package com.jiake.jk.video.cache;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.jiake.jk.video.constant.RedisConstant;
 import com.jiake.jk.video.mapper.VideoUserLikeMapper;
-import com.jiake.jk.video.pojo.entity.VideoUserCollectionsItem;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,47 +24,42 @@ public class VideoUserLikeCache {
     private RedissonClient redissonClient;
 
     public boolean tryLike(Long userId, Long videoId) {
-        String key = RedisConstant.VIDEO_USER_LIKE_KEY_PREFIX + userId;
-
-        Long result = stringRedisTemplate.execute(interactionScript, Collections.singletonList(key), videoId.toString(), "1", "600");
-        if (result != null && result.equals(RedisConstant.InteractionLua.NOT_EXIST.getValue())) {
-            RLock rLock = redissonClient.getLock(RedisConstant.VIDEO_USER_LIKE_LOCK_PREFIX + userId + ":" + videoId);
-            rLock.lock();
-            try {
-                result = stringRedisTemplate.execute(interactionScript, Collections.singletonList(key), videoId.toString(), "1", "600");
-                if (result != null && !result.equals(RedisConstant.InteractionLua.NOT_EXIST.getValue())) {
-                    return !result.equals(RedisConstant.InteractionLua.ERROR.getValue());
-                }
-                result = videoUserLikeMapper.isLike(userId, videoId) ? 1L : 0L;
-                stringRedisTemplate.opsForHash().put(key, videoId.toString(), String.valueOf(result));
-
-                return result > 0;
-            } finally {
-                rLock.unlock();
-            }
-        } else return result != null && !result.equals(RedisConstant.InteractionLua.ERROR.getValue());
+        return tryChange(userId, videoId, true);
     }
 
     public boolean tryUnlike(Long userId, Long videoId) {
+        return tryChange(userId, videoId, false);
+    }
+
+    /**
+     * Redis 命中时由 Lua 原子校验并写入目标状态；冷缓存时先以数据库为准，
+     * 再在同一用户-视频粒度锁内回填目标状态。旧实现在冷缓存时只回填旧状态，
+     * 会导致首次点赞/收藏被误判为异常操作。
+     */
+    private boolean tryChange(Long userId, Long videoId, boolean targetLiked) {
         String key = RedisConstant.VIDEO_USER_LIKE_KEY_PREFIX + userId;
+        String target = targetLiked ? "1" : "0";
+        Long result = stringRedisTemplate.execute(interactionScript, Collections.singletonList(key), videoId.toString(), target, "600");
+        if (RedisConstant.InteractionLua.OK.getValue() == (result == null ? -1L : result)) {
+            return true;
+        }
+        if (RedisConstant.InteractionLua.ERROR.getValue() == (result == null ? -1L : result)) {
+            return false;
+        }
 
-        Long result = stringRedisTemplate.execute(interactionScript, Collections.singletonList(key), videoId.toString(), "0", "600");
-        if (result != null && result.equals(RedisConstant.InteractionLua.NOT_EXIST.getValue())) {
-            RLock rLock = redissonClient.getLock(RedisConstant.VIDEO_USER_LIKE_LOCK_PREFIX + userId + ":" + videoId);
-            rLock.lock();
-            try {
-                result = stringRedisTemplate.execute(interactionScript, Collections.singletonList(key), videoId.toString(), "0", "600");
-                if (result != null && !result.equals(RedisConstant.InteractionLua.NOT_EXIST.getValue())) {
-                    return !result.equals(RedisConstant.InteractionLua.ERROR.getValue());
-                }
-                result = videoUserLikeMapper.isLike(userId, videoId) ? 1L : 0L;
-                stringRedisTemplate.opsForHash().put(key, videoId.toString(), String.valueOf(result));
-
-                return result > 0;
-            } finally {
-                rLock.unlock();
+        RLock lock = redissonClient.getLock(RedisConstant.VIDEO_USER_LIKE_LOCK_PREFIX + userId + ":" + videoId);
+        lock.lock();
+        try {
+            boolean currentLiked = videoUserLikeMapper.isLike(userId, videoId);
+            if (currentLiked == targetLiked) {
+                return false;
             }
-        } else return result != null && !result.equals(RedisConstant.InteractionLua.ERROR.getValue());
+            stringRedisTemplate.opsForHash().put(key, videoId.toString(), target);
+            stringRedisTemplate.expire(key, 600, java.util.concurrent.TimeUnit.SECONDS);
+            return true;
+        } finally {
+            lock.unlock();
+        }
     }
 
 }

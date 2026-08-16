@@ -14,7 +14,8 @@ public abstract class InteractionTemplate {
          */
         // 构建消息
         VideoInteractionMessage videoInteractionMessage = new VideoInteractionMessage();
-        videoInteractionMessage.setUserId(userId)
+        videoInteractionMessage.setEventId(nextEventId())
+                .setUserId(userId)
                 .setVideoId(videoId)
                 .setStatus(status);
         // 发送到队列异步处理
@@ -22,6 +23,9 @@ public abstract class InteractionTemplate {
     }
 
     protected abstract void tryInteract(Long userId, Long videoId, InteractionStatus interactionStatus);
+
+    /** 每次状态变更生成全局唯一事件标识，供消费者去重。 */
+    protected abstract Long nextEventId();
 
     protected abstract void sendMessageToQueue(VideoInteractionMessage videoInteractionMessage);
 }

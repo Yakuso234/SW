@@ -11,6 +11,7 @@ import lombok.experimental.Accessors;
 @NoArgsConstructor
 @Accessors(chain = true)
 public class VideoInteractionMessage {
+    Long eventId;
     Long userId;
     Long videoId;
     InteractionStatus status;

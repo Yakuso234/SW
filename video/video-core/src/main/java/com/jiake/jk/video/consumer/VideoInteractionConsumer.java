@@ -3,10 +3,12 @@ package com.jiake.jk.video.consumer;
 import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.mapper.VideoMapper;
 import com.jiake.jk.video.mapper.VideoCommentEventConsumptionMapper;
+import com.jiake.jk.video.mapper.VideoInteractionEventConsumptionMapper;
 import com.jiake.jk.video.mapper.VideoUserCommentMapper;
 import com.jiake.jk.video.mapper.VideoUserLikeMapper;
 import com.jiake.jk.video.pojo._enum.InteractionStatus;
 import com.jiake.jk.video.pojo.entity.VideoCommentEventConsumption;
+import com.jiake.jk.video.pojo.entity.VideoInteractionEventConsumption;
 import com.jiake.jk.video.pojo.mq.VideoCommentIncrMessage;
 import com.jiake.jk.video.pojo.mq.VideoCommentMessage;
 import com.jiake.jk.video.pojo.mq.VideoInteractionMessage;
@@ -33,6 +35,7 @@ public class VideoInteractionConsumer {
     private final VideoMapper videoMapper;
     private final VideoUserCommentMapper videoUserCommentMapper;
     private final VideoCommentEventConsumptionMapper videoCommentEventConsumptionMapper;
+    private final VideoInteractionEventConsumptionMapper videoInteractionEventConsumptionMapper;
 
     @Transactional
     @RabbitListener(queues = RabbitMQConstant.VIDEO_COMMENT_RELIABLE_QUEUE, containerFactory = "batchContainerFactory")
@@ -105,10 +108,19 @@ public class VideoInteractionConsumer {
                                             Consumer<VideoInteractionBatchRequest> batchProcessor) {
         /* 统计每个视频的增量数 */
         Map<Long, Integer> interactionIncrMap = new HashMap<>();
+        List<VideoInteractionMessage> firstConsumedEvents = new ArrayList<>();
         for (VideoInteractionMessage videoInteractionMessage : videoInteractionMessageList) {
+            if (videoInteractionMessage.getEventId() != null) {
+                VideoInteractionEventConsumption consumption = new VideoInteractionEventConsumption();
+                consumption.setEventId(videoInteractionMessage.getEventId());
+                if (videoInteractionEventConsumptionMapper.insertIgnore(consumption) == 0) {
+                    continue;
+                }
+            }
             int incrNumber = videoInteractionMessage.getStatus() == InteractionStatus.FRONT ? 1 : -1;
             interactionIncrMap.put(videoInteractionMessage.getVideoId(),
                     interactionIncrMap.getOrDefault(videoInteractionMessage.getVideoId(), 0) + incrNumber);
+            firstConsumedEvents.add(videoInteractionMessage);
         }
         /* 构造批量请求对象 */
         VideoInteractionBatchRequest videoInteractionBatchRequest = new VideoInteractionBatchRequest();
@@ -117,7 +129,7 @@ public class VideoInteractionConsumer {
             interactionIncrList.add(new VideoInteractionBatchRequest.Incr(entry.getKey(), entry.getValue()));
         }
         List<VideoInteractionBatchRequest.Record> interactionRecordList = new ArrayList<>();
-        for (VideoInteractionMessage videoInteractionMessage : videoInteractionMessageList) {
+        for (VideoInteractionMessage videoInteractionMessage : firstConsumedEvents) {
             interactionRecordList.add(new VideoInteractionBatchRequest.Record(videoInteractionMessage.getUserId(),
                     videoInteractionMessage.getVideoId(),
                     videoInteractionMessage.getStatus()));

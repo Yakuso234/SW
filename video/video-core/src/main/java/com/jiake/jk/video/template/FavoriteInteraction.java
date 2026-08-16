@@ -1,6 +1,7 @@
 package com.jiake.jk.video.template;
 
 import com.jiake.jk.common.exception.YHClientException;
+import com.jiake.jk.common.utils.SnowflakeUtils;
 import com.jiake.jk.video.pojo.mq.VideoInteractionMessage;
 import com.jiake.jk.video.pojo._enum.InteractionStatus;
 import com.jiake.jk.video.cache.VideoUserFavoriteCache;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Component;
 public class FavoriteInteraction extends InteractionTemplate {
     private final VideoUserFavoriteCache videoUserFavoriteCache;
     private final RabbitTemplate rabbitTemplate;
+    private final SnowflakeUtils snowflakeUtils;
 
     protected void tryInteract(Long userId, Long videoId, InteractionStatus status) {
         // 判断当前操作是否合法
@@ -21,6 +23,11 @@ public class FavoriteInteraction extends InteractionTemplate {
                 (status.equals(InteractionStatus.BACK) && videoUserFavoriteCache.tryUnFavorite(userId, videoId)))) {
             throw new YHClientException("异常操作！");
         }
+    }
+
+    @Override
+    protected Long nextEventId() {
+        return snowflakeUtils.nextId();
     }
 
     @Override
