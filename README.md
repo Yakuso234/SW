@@ -1,6 +1,6 @@
 # SW 智能短视频微服务平台
 
-SW 是一个面向创作者场景的 Java 微服务实践项目，当前主线聚焦“视频可靠异步处理”和“AI 创作者运营助手”。项目使用 Java 21、Spring Boot、Spring Cloud、RabbitMQ、Redis、MySQL、MinIO 与 Spring AI。
+SW 是一个面向创作者与内容消费者场景的 Java 微服务实践项目，当前主线聚焦“视频可靠异步处理、内容消费互动和 AI 创作者运营助手”。项目使用 Java 21、Spring Boot、Spring Cloud、RabbitMQ、Redis、MySQL、MinIO 与 Spring AI。
 
 > 当前仓库处于持续重构阶段。README 只描述已经验证的能力和明确的开发目标，不使用尚未复现的性能数据。
 
@@ -43,7 +43,8 @@ flowchart LR
 - Gateway、User、Video、Video Processor 可通过 IDEA 连接本地中间件运行。
 - 已跑通真实本地视频链路：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
 - AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；真实调用可携带 TraceId 追踪到 Video Service。
-- 独立本地前端 `SW-web` 已通过 Vite 代理和 Gateway JWT 完成公共流、登录、作品工作台及一次真实上传到 `PUBLISHED` 的联调；该前端暂不纳入本仓库。
+- 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；互动操作经 Gateway 使用隔离账号真实验收。点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。
+- 独立本地前端 `SW-web` 已通过 Vite 代理和 Gateway JWT 完成公共流、登录、作品工作台及一次真实上传到 `PUBLISHED` 的联调；本轮浏览器走查已展示真实公开 Feed、游标加载与互动入口。该前端暂不纳入本仓库。
 - 固定开发机上完成 1 次预热和 5 次串行端到端样本，上传提交至 `PUBLISHED / SUCCEEDED / Outbox SUCCESS` 的 P50 为 3500 ms、P95 为 3506 ms；它仅是同机回归基线，非生产吞吐结论。
 
 后续工程化工作：
@@ -73,7 +74,14 @@ flowchart LR
 - 标题/标签/简介等创作建议只生成文本，不自动修改视频或执行写操作。
 - 用户权限二次校验、模型超时降级、TraceId 与工具调用审计。
 
-### 3. 可验证的工程能力
+### 3. 内容消费与社交互动
+
+- 公开时间 Feed 与关注 Feed 均使用游标分页，避免深分页；视频发布后通过独立 Inbox 向关注者扇出。
+- 点赞、收藏使用 Redis 原子状态切换；消息携带全局 `eventId`，消费端以幂等表去重，避免重投重复累加互动数。
+- 评论在本地事务中写入 Outbox，再由消费者异步聚合视频/根评论计数；互动计数是最终一致语义，不在前端伪造同步强一致。
+- 关注关系只维护 User 域社交图谱，互关不会隐式创建聊天会话或好友记录，避免内容社交依赖 Chat 领域。
+
+### 4. 可验证的工程能力
 
 - 状态机单测与 MySQL、Redis、RabbitMQ、MinIO 集成测试。
 - 完整 E2E 脚本以及重复消息、服务不可用等故障演练。
