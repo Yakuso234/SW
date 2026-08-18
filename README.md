@@ -44,7 +44,7 @@ flowchart LR
 - 已跑通真实本地视频链路：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
 - AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；真实调用可携带 TraceId 追踪到 Video Service。
 - 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；互动操作经 Gateway 使用隔离账号真实验收。点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。
-- 独立本地前端 `SW-web` 已通过 Vite 代理和 Gateway JWT 完成公共流、登录、作品工作台及一次真实上传到 `PUBLISHED` 的联调；本轮浏览器走查已展示真实公开 Feed、游标加载与互动入口。该前端暂不纳入本仓库。
+- 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，并收敛为简历主线：公开 Feed、点赞/收藏/评论、可靠投稿工作台、处理状态与失败诊断、AI 创作者助手；视觉采用原创赛博朋克 HUD 风格。
 - 固定开发机上完成 1 次预热和 5 次串行端到端样本，上传提交至 `PUBLISHED / SUCCEEDED / Outbox SUCCESS` 的 P50 为 3500 ms、P95 为 3506 ms；它仅是同机回归基线，非生产吞吐结论。
 
 后续工程化工作：
@@ -95,6 +95,8 @@ flowchart LR
 
 可按 [简历项目说明](docs/SW-简历项目说明.md) 查看已验证的技术边界、量化口径和面试可追问事实。
 
+面试准备可先阅读 [项目专属记忆](docs/SW-项目记忆.md)、[工作流程副记忆](docs/SW-工作流程副记忆.md)、[架构理解文档](docs/SW-面试架构理解.md) 和 [面试问题清单](docs/SW-面试问题清单.md)。
+
 ## 核心模块
 
 | 模块 | 当前定位 |
@@ -128,7 +130,16 @@ Copy-Item .env.example .env
 真实 `.env` 已被 Git 忽略，不得提交到仓库。
 
 ```powershell
-docker compose up -d mysql redis rabbitmq minio nacos
+docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos
+```
+
+SW 使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷不会与其他项目复用；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`。如有端口占用，只需在 `.env` 修改对应的 `SW_*_PORT`，不要改容器内部端口。
+
+也可以使用脚本启动，脚本固定使用独立的 `sw-dev` Compose 项目名：
+
+```powershell
+.\scripts\start-sw-infra.ps1
+.\scripts\start-sw-infra.ps1 -Observability
 ```
 
 ### 导入 Nacos 配置
@@ -159,6 +170,18 @@ mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlock
 2. `com.jiake.jk.video.VideoApplication`
 3. `com.jiake.jk.videoprocessor.VideoProcessorApplication`
 4. `com.jiake.jk.gateway.GatewayApplication`
+
+### 前端启动
+
+前端位于同一仓库的 `SW-web`，只保留简历展示所需的内容消费、可靠发布和 AI 助手模块：
+
+```powershell
+cd SW-web
+npm install
+npm run dev
+```
+
+浏览器访问 `http://127.0.0.1:18888`。Vite 会把 `/user`、`/video` 和 `/ai` 请求代理到 Gateway `10086`；前端只负责展示和发起业务请求，大文件仍走后端返回的 MinIO 预签名 URL。
 
 真实视频异步链路验收（本地开发环境）：先启动上述服务与 Docker 基础中间件，再执行：
 
@@ -236,7 +259,7 @@ GET /ai/api/actuator/prometheus
 本机启动可观测组件：
 
 ```powershell
-docker compose --profile observability up -d prometheus grafana
+docker compose --project-name sw-dev --profile observability up -d prometheus grafana
 ```
 
 Prometheus 位于 `http://localhost:9090`，Grafana 位于 `http://localhost:3000`。两者仅绑定本机回环地址；Grafana 默认本机登录为 `admin/admin`，首次使用后应在 `.env` 设置 `GRAFANA_ADMIN_USER` 和 `GRAFANA_ADMIN_PASSWORD` 后重启 Grafana。预置看板为“SW / SW 核心链路可观测性”，包含网关限流拒绝、Outbox 投递失败、转码 P95 耗时和转码失败次数。Prometheus 会从 Docker 容器访问 IDEA 本机服务，因此需先启动 Gateway、Video、Video Processor；若要查看创作助手工具指标，还需启动 AI Service。

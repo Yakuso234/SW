@@ -1,5 +1,5 @@
 param(
-    [string]$NacosUrl = 'http://localhost:8848',
+    [string]$NacosUrl = "http://localhost:$($env:SW_NACOS_PORT ?? '28848')",
     [string]$NamespaceId = 'dev'
 )
 

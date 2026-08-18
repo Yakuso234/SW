@@ -13,11 +13,23 @@
 启动 Docker 基础设施：
 
 ```powershell
-docker compose up -d mysql redis rabbitmq minio nacos
-docker compose --profile observability up -d prometheus grafana
+docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos
+docker compose --project-name sw-dev --profile observability up -d prometheus grafana
 ```
 
+SW 中间件使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷与其他项目隔离；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`。
+
 在 IDEA 依次启动：User `10088`、Video `10091`、Video Processor `10092`、Gateway `10086`。AI `10094` 仅在已配置本地 `QWEN_API_KEY` 时启动。
+
+前端启动：
+
+```powershell
+cd SW-web
+npm install
+npm run dev
+```
+
+访问 `http://127.0.0.1:18888`，演示公开 Feed、互动、可靠投稿工作台和 AI 创作者助手。
 
 核验重点：
 

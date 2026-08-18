@@ -10,7 +10,7 @@ spring:
     alibaba:
       mcp:
         nacos:
-          server-addr: nacos:8848
+          server-addr: ${SW_NACOS_SERVER_ADDR:localhost:28848}
           username: ${NACOS_USERNAME}
           password: ${NACOS_PASSWORD}
           namespace: dev

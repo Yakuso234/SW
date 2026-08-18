@@ -1,6 +1,6 @@
 spring:
   r2dbc:
-    url: ${AI_R2DBC_URL:r2dbc:mysql://localhost:3306/yh}
+    url: ${AI_R2DBC_URL:r2dbc:mysql://${SW_MYSQL_HOST:localhost}:${SW_MYSQL_PORT:13306}/yh}
     username: ${MYSQL_USERNAME}
     password: ${MYSQL_PASSWORD}
     pool:

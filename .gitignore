@@ -43,6 +43,10 @@ hs_err_pid*.log
 *.keystore
 *.pem
 
+### Frontend dependencies and build output
+/SW-web/node_modules/
+/SW-web/dist/
+
 ### Local project continuity notes ###
 /PROJECT_MEMORY.md
 /docs/SW-问题与面试复盘.md
