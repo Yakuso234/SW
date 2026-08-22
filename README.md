@@ -1,6 +1,6 @@
 # SW 智能短视频微服务平台
 
-SW 是一个面向创作者与内容消费者场景的 Java 微服务实践项目，当前主线聚焦“视频可靠异步处理、内容消费互动和 AI 创作者运营助手”。项目使用 Java 21、Spring Boot、Spring Cloud、RabbitMQ、Redis、MySQL、MinIO 与 Spring AI。
+SW 是一个面向创作者与内容消费者场景的 Java 微服务实践项目，当前主线聚焦“视频可靠异步处理、内容消费互动和 AI 创作者运营助手”。项目使用 Java 21、Spring Boot、Spring Cloud、RabbitMQ、Redis、MySQL、MinIO 与 Spring AI，并配套同仓库 Vue/Vite 前端 `SW-web`。
 
 > 当前仓库处于持续重构阶段。README 只描述已经验证的能力和明确的开发目标，不使用尚未复现的性能数据。
 
@@ -8,7 +8,7 @@ SW 是一个面向创作者与内容消费者场景的 Java 微服务实践项�
 
 ```mermaid
 flowchart LR
-    C["创作者客户端"] --> G["Gateway"]
+    C["SW-web 前端"] --> G["Gateway"]
     G --> U["User Service"]
     G --> V["Video Service"]
     V --> M["MinIO"]
@@ -35,17 +35,18 @@ flowchart LR
 
 ## 当前状态
 
-已经验证：
+当前已完成或具备可验证证据：
 
 - 完成项目目录、Java 包名和 Maven 坐标统一，当前根包为 `com.jiake.jk`。
 - 核心模块已在 Java 21 下编译通过。
 - Docker 本地基础环境可运行：MySQL、Redis、RabbitMQ、MinIO、Nacos。
 - Gateway、User、Video、Video Processor 可通过 IDEA 连接本地中间件运行。
-- 已跑通真实本地视频链路：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
-- AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；真实调用可携带 TraceId 追踪到 Video Service。
-- 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；互动操作经 Gateway 使用隔离账号真实验收。点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。
-- 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，并收敛为简历主线：公开 Feed、点赞/收藏/评论、可靠投稿工作台、处理状态与失败诊断、AI 创作者助手；视觉采用原创赛博朋克 HUD 风格。
-- 固定开发机上完成 1 次预热和 5 次串行端到端样本，上传提交至 `PUBLISHED / SUCCEEDED / Outbox SUCCESS` 的 P50 为 3500 ms、P95 为 3506 ms；它仅是同机回归基线，非生产吞吐结论。
+- 视频可靠异步链路已具备完整代码、测试和本地 E2E 脚本：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
+- AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；调用链支持 TraceId 追踪到 Video Service。
+- 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。
+- 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，收敛为公开 Feed、互动、可靠投稿工作台、处理状态/失败诊断和 AI 助手；已通过生产构建、浏览器页面和控制台检查，视觉采用原创赛博朋克 HUD 风格。
+- 重装系统后已重新验证 Docker 中间件、Nacos 配置导入、Gateway Java 21 启动和前端构建；完整多服务真实 E2E 需要启动 User、Video、Video Processor、AI 后再复验。
+- 固定开发机曾完成 1 次预热和 5 次串行端到端样本，P50 为 3500 ms、P95 为 3506 ms；它仅是历史同机回归基线，非生产吞吐结论。
 
 后续工程化工作：
 
@@ -57,6 +58,18 @@ flowchart LR
 
 - Product、Order、Live、Chat、Admin 等存量模块不属于当前简历主线。
 - 不把该固定环境基线表述为生产 TPS、并发上限或通用性能结论。
+
+## 前端演示范围
+
+`SW-web` 位于仓库根目录，参考原始前端 [yh-fe](https://gitee.com/YXXHYH/yh-fe) 的 Vue/Vite 组织方式，但只保留当前简历主线：
+
+| 页面 | 可演示内容 |
+|---|---|
+| `SIGNAL // FEED` | 公开/关注 Feed、搜索、点赞、收藏、评论 |
+| `CREATOR // OPS` | 预签名直传、MinIO 上传、投稿提交、处理状态和失败列表 |
+| `AI // OPS ASSISTANT` | SSE 流式对话、处理状态查询、失败诊断和运营文案建议 |
+
+前端使用原创赛博朋克 HUD 视觉系统：黑底、青蓝/洋红霓虹、扫描线、网格、终端标签和切角面板。前端不可用后端服务时会明确显示 `DEMO DATA`，只用于页面走查；登录、互动、投稿和 AI 请求仍要求真实后端服务，避免把演示数据当成链路证据。
 
 ## 重点改造
 
@@ -108,6 +121,7 @@ flowchart LR
 | `ai` | SSE 对话编排、受权限约束的状态查询与失败诊断 |
 | `mcp-server` | 预留的工具适配模块，不属于当前完成能力 |
 | `common` | 统一响应、异常、鉴权上下文和基础组件 |
+| `SW-web` | Vue/Vite 前端，收敛展示内容消费、可靠发布和 AI 助手主线 |
 
 其他模块保留为后续扩展，不作为当前核心完成度依据。
 
@@ -118,6 +132,7 @@ flowchart LR
 - JDK 21
 - Maven 3.9+
 - Docker Desktop
+- Node.js 22+
 
 ### 启动基础设施
 
@@ -182,6 +197,8 @@ npm run dev
 ```
 
 浏览器访问 `http://127.0.0.1:18888`。Vite 会把 `/user`、`/video` 和 `/ai` 请求代理到 Gateway `10086`；前端只负责展示和发起业务请求，大文件仍走后端返回的 MinIO 预签名 URL。
+
+如果只想检查页面视觉和交互，不启动 Java 服务也可以访问；此时 Feed 会进入明确标注的 Demo Data 模式。要演示真实链路，先启动 User、Video、Video Processor、Gateway，AI 页面再额外启动 AI Service。
 
 真实视频异步链路验收（本地开发环境）：先启动上述服务与 Docker 基础中间件，再执行：
 
@@ -275,4 +292,11 @@ Prometheus 位于 `http://localhost:9090`，Grafana 位于 `http://localhost:300
 
 ## 项目说明
 
-本项目参考[原项目](https://github.com/Yi-Xuan-i/YH)进行重构与扩展。
+本项目在原作者允许的基础上参考[原项目](https://github.com/Yi-Xuan-i/YH)进行重构与扩展；前端重构参考[原始 yh-fe](https://gitee.com/YXXHYH/yh-fe)，当前前后端已合并到本仓库维护。
+
+## 面试准备资料
+
+- [项目专属记忆](docs/SW-项目记忆.md)：项目事实边界、模块定位和完成度口径。
+- [工作流程副记忆](docs/SW-工作流程副记忆.md)：当前进度、验证证据、风险和下一步。
+- [架构理解文档](docs/SW-面试架构理解.md)：适合面试前快速复习整体架构。
+- [面试问题清单](docs/SW-面试问题清单.md)：只记录开发中产生的高价值问题、取舍和故障复盘。
