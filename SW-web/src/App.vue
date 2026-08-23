@@ -1,14 +1,18 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import {
-  clearToken, favoriteVideo, finishUpload, getComments, getFeed, getFollowFeed, getLegacyFeed, getMyProcessing,
-  getMyPublished, getMyRejected, getPresignedVideo, getProfile, getToken, likeVideo, login, postComment, register,
-  request, searchVideos, setToken, streamAssistant, submitVideo
+  clearToken, deletePublishedVideos, favoriteVideo, finishUpload, followCreator, getComments, getFeed, getFollowFeed,
+  getCreatorAnalytics, getLegacyFeed, getMyFavorites, getMyProcessing, getMyPublished, getMyRejected, getPresignedVideo,
+  getProfile, getProfileDetail, getProfileStats, getToken, likeVideo, login, postComment, recordVideoView, register,
+  request, searchCreators, searchVideos, setToken, streamAssistant, submitVideo, unfollowCreator, updateProfile
 } from './api'
 
 const view = ref('feed')
 const feedMode = ref('public')
 const search = ref('')
+const searchMode = ref('video')
+const searchActive = ref(false)
+const creators = ref([])
 const videos = ref([])
 const feedCursor = ref('')
 const feedHasMore = ref(false)
@@ -21,6 +25,7 @@ const noticeType = ref('ok')
 const demoMode = ref(false)
 const token = ref(getToken())
 const profile = ref(null)
+const profileDraft = ref({ name: '', bio: '' })
 const authOpen = ref(false)
 const authMode = ref('login')
 const authForm = ref({ phoneNumber: '', password: '' })
@@ -31,6 +36,10 @@ const uploadState = ref('等待选择媒体')
 const processing = ref([])
 const published = ref([])
 const rejected = ref([])
+const favoriteVideos = ref([])
+const profileStats = ref({ followingCount: 0, followerCount: 0 })
+const analytics = ref({ publishedCount: 0, views: 0, likes: 0, comments: 0, favorites: 0, trends: [] })
+const playedVideoIds = new Set()
 const aiInput = ref('')
 const aiBusy = ref(false)
 const aiMessages = ref([{ role: 'ai', text: '创作者助手已上线。你可以问我：某个视频为什么失败？或者帮我生成标题、简介和标签。' }])
@@ -53,10 +62,11 @@ function mediaUrl(value) { if (!value) return ''; if (/^https?:\/\//.test(value)
 function normalizeVideo(item, index = 0) {
   return {
     ...item,
-    id: String(item.id),
+    id: String(item.id || item.videoId),
     likes: Number(item.likes || 0),
     comments: Number(item.comments || 0),
     favorites: Number(item.favorites || 0),
+    views: Number(item.views || 0),
     palette: item.palette || demoVideos[index % demoVideos.length].palette
   }
 }
@@ -85,11 +95,30 @@ function loadMoreFeed() { if (!loading.value && feedHasMore.value) loadFeed(fals
 function loadDemoFeed() { demoMode.value = true; feedHasMore.value = false; videos.value = demoVideos.map((item) => ({ ...item })); showNotice('已加载明确标注的视觉演示信号；真实 Feed 仍需 PUBLISHED 数据') }
 
 async function doSearch() {
-  if (!search.value.trim()) return loadFeed(true)
+  if (!search.value.trim()) return clearSearch()
   loading.value = true
-  try { videos.value = unwrapList(await searchVideos(search.value.trim())).map(normalizeVideo); demoMode.value = false }
+  try {
+    view.value = 'feed'; searchActive.value = true; demoMode.value = false; feedHasMore.value = false
+    if (searchMode.value === 'creator') {
+      creators.value = unwrapList(await searchCreators(search.value.trim()))
+      videos.value = []
+    } else {
+      creators.value = []
+      videos.value = unwrapList(await searchVideos(search.value.trim())).map(normalizeVideo)
+    }
+  }
   catch (error) { showNotice(error.message, 'error') }
   finally { loading.value = false }
+}
+function clearSearch() { search.value = ''; searchActive.value = false; creators.value = []; return loadFeed(true) }
+async function toggleCreatorFollow(creator) {
+  const next = !creator.isFollowed
+  try {
+    if (next) await followCreator(creator.id); else await unfollowCreator(creator.id)
+    creator.isFollowed = next
+    creator.followerCount = Math.max(0, Number(creator.followerCount || 0) + (next ? 1 : -1))
+    showNotice(next ? '已订阅创作者信号' : '已取消订阅')
+  } catch (error) { showNotice(error.message, 'error') }
 }
 
 async function openVideo(video) {
@@ -99,6 +128,17 @@ async function openVideo(video) {
 function requireLogin() { if (!isLoggedIn.value) { authMode.value = 'login'; authOpen.value = true; showNotice('互动和创作者工作台需要先登录', 'error'); return false } return true }
 async function toggleLike(video) { if (!requireLogin() || String(video.id).startsWith('demo-')) return; const next = !video.isLike; try { await likeVideo(video.id, next); video.isLike = next; video.likes = Math.max(0, Number(video.likes || 0) + (next ? 1 : -1)) } catch (error) { showNotice(error.message, 'error') } }
 async function toggleFavorite(video) { if (!requireLogin() || String(video.id).startsWith('demo-')) return; const next = !video.isFavorite; try { await favoriteVideo(video.id, next); video.isFavorite = next; video.favorites = Math.max(0, Number(video.favorites || 0) + (next ? 1 : -1)) } catch (error) { showNotice(error.message, 'error') } }
+async function recordPlayback(video) {
+  if (!isLoggedIn.value || demoMode.value || !video?.id || playedVideoIds.has(String(video.id))) return
+  playedVideoIds.add(String(video.id))
+  try {
+    const counted = await recordVideoView(video.id)
+    if (counted) video.views = Number(video.views || 0) + 1
+  } catch {
+    playedVideoIds.delete(String(video.id))
+    /* 观看计数失败不影响媒体播放；服务端仍以每日去重约束为准。 */
+  }
+}
 async function sendComment() { if (!requireLogin() || !selectedVideo.value || !commentText.value.trim()) return; try { await postComment(selectedVideo.value.id, commentText.value.trim()); commentText.value = ''; comments.value = unwrapList(await getComments(selectedVideo.value.id)); showNotice('评论已提交') } catch (error) { showNotice(error.message, 'error') } }
 
 async function submitAuth() {
@@ -107,7 +147,29 @@ async function submitAuth() {
     else { const result = await login(authForm.value); setToken(result); token.value = result; authOpen.value = false; await loadProfile(); await loadFeed(); showNotice('身份验证通过，欢迎回到 SIGNAL.WAVE') }
   } catch (error) { showNotice(error.message, 'error') }
 }
-async function loadProfile() { if (!isLoggedIn.value) return; try { profile.value = await getProfile() } catch { profile.value = null } }
+async function loadProfile() {
+  if (!isLoggedIn.value) return
+  try {
+    const [basic, detail] = await Promise.all([getProfile(), getProfileDetail()])
+    profile.value = { ...basic, ...detail }
+    profileDraft.value = { name: detail?.name || basic?.name || '', bio: detail?.bio || '' }
+  } catch { profile.value = null }
+}
+async function saveProfile() {
+  try {
+    await updateProfile(profileDraft.value)
+    await loadProfile()
+    showNotice('创作者资料已更新')
+  } catch (error) { showNotice(error.message, 'error') }
+}
+async function deletePublishedVideo(id) {
+  if (!window.confirm('确认删除这条已发布视频？此操作只影响本地开发数据。')) return
+  try {
+    await deletePublishedVideos([id])
+    published.value = published.value.filter((item) => String(item.id) !== String(id))
+    showNotice('已删除已发布视频')
+  } catch (error) { showNotice(error.message, 'error') }
+}
 function logout() { clearToken(); token.value = ''; profile.value = null; showNotice('已安全断开身份连接') }
 
 function onFileChange(event, kind) { const file = event.target.files?.[0]; if (!file) return; if (kind === 'video') { selectedFile.value = file; uploadState.value = `已载入 ${file.name}` } else selectedCover.value = file }
@@ -125,7 +187,17 @@ async function publishVideo() {
 }
 async function loadCreatorData() {
   if (!isLoggedIn.value) return
-  try { [published.value, processing.value, rejected.value] = await Promise.all([getMyPublished(), getMyProcessing(), getMyRejected()]) } catch { /* 页面仍展示当前操作状态 */ }
+  try {
+    const [publishedResult, processingResult, rejectedResult, favoritesResult, statsResult, analyticsResult] = await Promise.all([
+      getMyPublished(), getMyProcessing(), getMyRejected(), getMyFavorites(), getProfileStats(), getCreatorAnalytics()
+    ])
+    published.value = unwrapList(publishedResult).map(normalizeVideo)
+    processing.value = unwrapList(processingResult)
+    rejected.value = unwrapList(rejectedResult)
+    favoriteVideos.value = unwrapList(favoritesResult).map(normalizeVideo)
+    profileStats.value = statsResult || { followingCount: 0, followerCount: 0 }
+    analytics.value = analyticsResult || analytics.value
+  } catch { /* 页面仍展示当前操作状态 */ }
 }
 
 async function askAssistant() {
@@ -138,6 +210,7 @@ async function askAssistant() {
 
 function setView(next) { view.value = next; if (next === 'feed') loadFeed(); if (next === 'creator') loadCreatorData() }
 function formatCount(value) { const n = Number(value || 0); return n > 9999 ? `${(n / 10000).toFixed(1)}W` : n }
+const trendMax = computed(() => Math.max(1, ...((analytics.value.trends || []).map((item) => Number(item.views || 0)))))
 function scrollToFeed() { document.querySelector('.signal-deck, .feed-empty')?.scrollIntoView({ behavior: 'smooth' }) }
 
 onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadFeed() } })
@@ -180,7 +253,9 @@ onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadF
         <button :class="{ active: view === 'ai' }" @click="setView('ai')">03 / AI ASSISTANT</button>
       </nav>
       <div class="top-actions">
-        <input v-model="search" class="search" placeholder="SEARCH SIGNAL..." @keyup.enter="doSearch" />
+        <span class="net-status"><i></i> NETRUN / {{ demoMode ? 'SIM' : 'LIVE' }}</span>
+        <select v-model="searchMode" class="search-type" @change="search.trim() && doSearch()"><option value="video">VIDEO</option><option value="creator">CREATOR</option></select>
+        <input v-model="search" class="search" :placeholder="searchMode === 'video' ? 'SEARCH VIDEO...' : 'SEARCH CREATOR...'" @keyup.enter="doSearch" />
         <button v-if="isLoggedIn" class="avatar" @click="logout">{{ profile?.name?.slice(0, 1) || 'U' }}</button>
         <button v-else class="btn small ghost" @click="authOpen = true">接入身份</button>
       </div>
@@ -201,23 +276,24 @@ onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadF
             <p class="lede">不只是上传和 AI。这里包含公开刷流、关注流、搜索、播放、点赞、收藏与评论；创作者端负责投稿和状态追踪，AI 负责标题建议与失败诊断。</p>
             <div class="hero-cta"><button class="btn yellow" @click="scrollToFeed">JACK INTO FEED ↓</button><button class="btn ghost" @click="setView('creator')">OPEN CREATOR OPS</button></div>
           </div>
-          <div class="hero-art cp-art"><div class="hero-grid"></div><div class="mega-code">77</div><div class="hero-card"><small>SW // EDGE SIGNAL</small><h3>WAKE THE FEED</h3><p>GATEWAY · OUTBOX · RABBITMQ · FFMPEG</p></div><div class="chrome-meter"><span>CHROME</span><b>86%</b></div></div>
+          <div class="hero-art cp-art"><div class="hero-grid"></div><div class="mega-code">77</div><div class="city-silhouette"><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="hero-card"><small>SW // EDGE SIGNAL</small><h3>WAKE THE FEED</h3><p>GATEWAY · OUTBOX · RABBITMQ · FFMPEG</p></div><div class="chrome-meter"><span>CHROME</span><b>86%</b></div><div class="hero-coordinates">NIGHT LINK / 77.031<br>BD STREAM READY</div></div>
         </section>
         <div class="capability-strip"><span>PUBLIC FEED</span><span>FOLLOWING</span><span>VIDEO PLAYBACK</span><span>SEARCH</span><span>LIKE</span><span>FAVORITE</span><span>COMMENTS</span></div>
-        <div class="section-head"><div><div class="eyebrow">BRAINDANCE CHANNEL / CONSUMER SIDE</div><h2>LIVE SIGNALS</h2><p>{{ demoMode ? 'DEMO DATA / VISUAL PREVIEW ONLY' : 'REAL FEED / Gateway connected' }}</p></div><div class="filter-tabs"><button :class="{ active: feedMode === 'public' }" @click="switchFeedMode('public')">PUBLIC</button><button :class="{ active: feedMode === 'following' }" @click="requireLogin() && switchFeedMode('following')">FOLLOWING</button></div></div>
+        <div class="section-head"><div><div class="eyebrow">BRAINDANCE CHANNEL / CONSUMER SIDE</div><h2>{{ searchActive ? `SEARCH // ${searchMode.toUpperCase()}` : 'LIVE SIGNALS' }}</h2><p>{{ searchActive ? `QUERY / ${search}` : (demoMode ? 'DEMO DATA / VISUAL PREVIEW ONLY' : 'REAL FEED / Gateway connected') }}</p></div><div class="filter-tabs"><button v-if="searchActive" @click="clearSearch">CLEAR SEARCH</button><button :class="{ active: feedMode === 'public' && !searchActive }" @click="switchFeedMode('public')">PUBLIC</button><button :class="{ active: feedMode === 'following' && !searchActive }" @click="switchFeedMode('following')">FOLLOWING</button></div></div>
         <div v-if="loading" class="empty">LOADING SIGNAL STREAM...</div>
+        <div v-else-if="searchActive && searchMode === 'creator'" class="creator-results"><article v-for="creator in creators" :key="creator.id" class="creator-card"><div class="creator-avatar">{{ creator.name?.slice(0, 1) || 'N' }}</div><div><div class="eyebrow">CREATOR ID // {{ creator.id }}</div><h3>{{ creator.name || 'UNKNOWN CREATOR' }}</h3><p>{{ creator.bio || '该创作者暂未写入身份简介。' }}</p><small>{{ formatCount(creator.followerCount) }} FOLLOWERS</small></div><button class="btn" :class="{ ghost: creator.isFollowed }" @click="toggleCreatorFollow(creator)">{{ creator.isFollowed ? 'UNFOLLOW' : 'FOLLOW +' }}</button></article><div v-if="!creators.length" class="empty">NO CREATOR SIGNAL MATCHED</div></div>
         <div v-else-if="videos.length" class="signal-deck">
           <aside class="feed-rail"><div class="rail-line"></div><div class="rail-item active"><b>01</b><span>DISCOVER<br>公开刷流</span></div><div class="rail-item"><b>02</b><span>FOLLOW<br>关注订阅</span></div><div class="rail-item"><b>03</b><span>REACT<br>赞藏评论</span></div><div class="rail-status"><i></i> CHANNEL LIVE</div></aside>
           <div class="video-stream">
             <article v-for="(video, index) in videos" :key="video.id" class="signal-card">
               <div class="media-stage" :style="{ '--a': video.palette?.[0] || '#122c54', '--b': video.palette?.[1] || '#ff267f' }">
-                <video v-if="video.url" :src="mediaUrl(video.url)" controls loop muted playsinline preload="metadata" @click.stop></video>
+                <video v-if="video.url" :src="mediaUrl(video.url)" controls loop muted playsinline preload="metadata" @play="recordPlayback(video)" @click.stop></video>
                 <div v-else class="poster"><span>NEURAL CLIP // {{ String(video.id).padStart(4, '0') }}</span></div>
-                <div class="media-hud"><span>REC ● {{ String(index + 1).padStart(2, '0') }}</span><span>{{ demoMode ? 'SIMULATION' : 'LIVE DATA' }}</span></div>
+                <div class="media-hud"><span>REC ● {{ String(index + 1).padStart(2, '0') }}</span><span>BD // {{ demoMode ? 'SIMULATION' : 'LIVE DATA' }}</span></div>
                 <div class="edge-mark">SW<br><b>77</b></div>
               </div>
               <div class="signal-copy">
-                <div><div class="eyebrow">SIGNAL ID // {{ video.id }}</div><h3>{{ video.description || '未命名信号' }}</h3><p>@{{ video.creatorName || 'UNKNOWN CREATOR' }} · {{ demoMode ? '视觉演示信号，不代表后端数据' : '经 Gateway 分发的公开视频' }}</p></div>
+                <div><div class="eyebrow">SIGNAL ID // {{ video.id }}</div><h3>{{ video.description || '未命名信号' }}</h3><p>@{{ video.creatorName || 'UNKNOWN CREATOR' }} · ▶ {{ formatCount(video.views) }} VIEWS · {{ demoMode ? '视觉演示信号，不代表后端数据' : '经 Gateway 分发的公开视频' }}</p></div>
                 <div class="signal-actions"><button class="action-key" :class="{ on: video.isLike }" @click="toggleLike(video)"><b>♥</b><span>{{ formatCount(video.likes) }}<small>LIKE</small></span></button><button class="action-key" :class="{ on: video.isFavorite }" @click="toggleFavorite(video)"><b>◆</b><span>{{ formatCount(video.favorites) }}<small>SAVE</small></span></button><button class="action-key" @click="openVideo(video)"><b>▤</b><span>{{ formatCount(video.comments) }}<small>COMMENT</small></span></button></div>
               </div>
             </article>
@@ -228,7 +304,7 @@ onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadF
       </template>
 
       <template v-else-if="view === 'creator'">
-        <div class="workspace"><section class="panel"><h3>UPLOAD PIPELINE</h3><div class="form-row"><label>VIDEO SOURCE / MP4</label><div class="dropzone"><div><strong>{{ selectedFile ? selectedFile.name : 'DROP MEDIA HERE' }}</strong><span>预签名直传 MinIO，不经过 Gateway 搬运大文件</span><br /><input type="file" accept="video/mp4,video/*" @change="(e) => onFileChange(e, 'video')" /></div></div></div><div class="form-row"><label>DESCRIPTION</label><textarea v-model="creatorForm.description" class="textarea" placeholder="写下这条信号的描述..."></textarea></div><div class="form-row"><label>TAGS / COMMA SEPARATED</label><input v-model="creatorForm.tags" class="field" /></div><div class="form-row"><label>COVER / OPTIONAL</label><input type="file" accept="image/*" @change="(e) => onFileChange(e, 'cover')" /></div><button class="btn pink" @click="publishVideo">EXECUTE PUBLISH →</button><div class="status-strip ok">{{ uploadState }}</div></section><section class="panel"><h3>PIPELINE TELEMETRY</h3><div class="metric-grid"><div class="metric"><b>{{ published.length }}</b><span>PUBLISHED</span></div><div class="metric"><b>{{ processing.length }}</b><span>PROCESSING</span></div><div class="metric"><b>{{ rejected.length }}</b><span>REJECTED</span></div></div><h4>RECENT PROCESSING JOBS</h4><div class="job-list"><div v-for="item in processing.slice(0, 5)" :key="item.id || item.videoId" class="job"><div><b>{{ item.description || `VIDEO // ${item.videoId || 'PENDING'}` }}</b><small>Outbox → RabbitMQ → Processor</small></div><span class="badge">PROCESSING</span></div><div v-if="!processing.length" class="empty">登录并发布视频后，处理状态会出现在这里。</div></div><h4>FAILURE RECOVERY</h4><div v-for="item in rejected.slice(0, 3)" :key="item.id || item.videoId" class="job"><div><b>VIDEO // {{ item.videoId || item.id }}</b><small>{{ item.errorMessage || '可通过 AI 助手诊断' }}</small></div><span class="badge fail">REJECTED</span></div></section></div>
+        <div class="workspace"><section class="panel"><h3>UPLOAD PIPELINE // CREATE</h3><div class="form-row"><label>VIDEO SOURCE / MP4</label><div class="dropzone"><div><strong>{{ selectedFile ? selectedFile.name : 'DROP MEDIA HERE' }}</strong><span>预签名直传 MinIO，不经过 Gateway 搬运大文件</span><br /><input type="file" accept="video/mp4,video/*" @change="(e) => onFileChange(e, 'video')" /></div></div></div><div class="form-row"><label>DESCRIPTION</label><textarea v-model="creatorForm.description" class="textarea" placeholder="写下这条信号的描述..."></textarea></div><div class="form-row"><label>TAGS / COMMA SEPARATED</label><input v-model="creatorForm.tags" class="field" /></div><div class="form-row"><label>COVER / OPTIONAL</label><input type="file" accept="image/*" @change="(e) => onFileChange(e, 'cover')" /></div><button class="btn pink" @click="publishVideo">EXECUTE PUBLISH →</button><div class="status-strip ok">{{ uploadState }}</div><h3 class="sub-panel-title">CREATOR PROFILE // UPDATE</h3><div class="form-row"><label>DISPLAY NAME</label><input v-model="profileDraft.name" class="field" maxlength="30" /></div><div class="form-row"><label>BIO</label><textarea v-model="profileDraft.bio" class="textarea compact" maxlength="160" placeholder="写下你的创作者身份简介..."></textarea></div><button class="btn ghost" @click="saveProfile">SYNC PROFILE →</button></section><section class="panel"><h3>CREATOR TELEMETRY // REAL DATA</h3><div class="metric-grid metric-grid-wide"><div class="metric"><b>{{ formatCount(analytics.publishedCount) }}</b><span>PUBLISHED</span></div><div class="metric"><b>{{ formatCount(analytics.views) }}</b><span>VIEWS</span></div><div class="metric"><b>{{ formatCount(profileStats.followerCount) }}</b><span>FOLLOWERS</span></div><div class="metric"><b>{{ formatCount(profileStats.followingCount) }}</b><span>FOLLOWING</span></div><div class="metric"><b>{{ formatCount(analytics.likes) }}</b><span>LIKES</span></div><div class="metric"><b>{{ formatCount(analytics.favorites) }}</b><span>SAVES</span></div></div><h4>7-DAY UNIQUE VIEW TREND</h4><div class="trend-chart"><div v-for="item in analytics.trends || []" :key="item.date" class="trend-bar"><span class="trend-value">{{ item.views }}</span><i :style="{ height: `${Math.max(8, Number(item.views || 0) / trendMax * 100)}%` }"></i><small>{{ item.date?.slice(5) }}</small></div></div><p class="analytics-note">同一登录用户对同一视频每天仅计一次观看；这是本地演示口径，不替代生产环境的完播率、风控与反刷量系统。</p><h4>PUBLISHED LIBRARY // DELETE</h4><div class="job-list"><div v-for="item in published.slice(0, 5)" :key="item.id" class="job"><div><b>{{ item.description || `VIDEO // ${item.id}` }}</b><small>▶ {{ item.views || 0 }} · ♥ {{ item.likes || 0 }} · ▤ {{ item.comments || 0 }} · ◆ {{ item.favorites || 0 }}</small></div><button class="btn small ghost danger" @click="deletePublishedVideo(item.id)">DELETE</button></div><div v-if="!published.length" class="empty">暂无已发布视频。</div></div><h4>MY SAVED SIGNALS</h4><div class="job-list"><div v-for="item in favoriteVideos.slice(0, 5)" :key="item.videoId || item.id" class="job"><div><b>{{ item.description || `VIDEO // ${item.videoId || item.id}` }}</b><small>◆ {{ item.favorites || 0 }} · CREATOR {{ item.creatorName || item.creatorId || 'UNKNOWN' }}</small></div><span class="badge">SAVED</span></div><div v-if="!favoriteVideos.length" class="empty">还没有收藏视频。</div></div><h4>RECENT PROCESSING JOBS</h4><div class="job-list"><div v-for="item in processing.slice(0, 5)" :key="item.id || item.videoId" class="job"><div><b>{{ item.description || `VIDEO // ${item.videoId || 'PENDING'}` }}</b><small>Outbox → RabbitMQ → Processor</small></div><span class="badge">PROCESSING</span></div><div v-if="!processing.length" class="empty">登录并发布视频后，处理状态会出现在这里。</div></div><h4>FAILURE RECOVERY</h4><div v-for="item in rejected.slice(0, 3)" :key="item.id || item.videoId" class="job"><div><b>VIDEO // {{ item.videoId || item.id }}</b><small>{{ item.errorMessage || '可通过 AI 助手诊断' }}</small></div><span class="badge fail">REJECTED</span></div></section></div>
       </template>
 
       <template v-else>

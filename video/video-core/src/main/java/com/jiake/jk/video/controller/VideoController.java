@@ -33,6 +33,18 @@ public class VideoController {
         return Result.success(followFeedService.getFollowFeed(UserContext.getUser(), cursor, pageSize));
     }
 
+    @Operation(summary = "记录一次每日去重的视频播放")
+    @PostMapping("/view/{videoId}")
+    public Result<Boolean> recordView(@PathVariable Long videoId) {
+        return Result.success(videoService.recordView(UserContext.getUser(), videoId));
+    }
+
+    @Operation(summary = "获取我的创作者数据概览")
+    @GetMapping("/analytics")
+    public Result<CreatorAnalyticsOverviewResponse> getCreatorAnalytics() {
+        return Result.success(videoService.getCreatorAnalytics(UserContext.getUser()));
+    }
+
     @Operation(summary = "初始化分片上传")
     @PostMapping("/start-upload-part")
     public Result<String> startUploadPart(Integer totalChunks) {

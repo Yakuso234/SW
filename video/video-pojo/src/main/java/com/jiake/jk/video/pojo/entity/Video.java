@@ -17,6 +17,7 @@ public class Video {
     Long likes;
     Long comments;
     Long favorites;
+    Long views;
     VideoStatus status;
     @TableField(fill = FieldFill.INSERT)
     LocalDateTime createdAt;

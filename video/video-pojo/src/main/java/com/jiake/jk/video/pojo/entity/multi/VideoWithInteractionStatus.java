@@ -17,6 +17,7 @@ public class VideoWithInteractionStatus {
     private Long likes;
     private Long comments;
     private Long favorites;
+    private Long views;
     private Boolean isLike;
     private Boolean isFavorite;
     private LocalDateTime publishedAt;

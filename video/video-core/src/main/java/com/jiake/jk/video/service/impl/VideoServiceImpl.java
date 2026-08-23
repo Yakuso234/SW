@@ -46,6 +46,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -91,6 +92,8 @@ public class VideoServiceImpl implements VideoService {
     private VideoProcessingTaskMapper videoProcessingTaskMapper;
     @Autowired
     private ThreadPoolExecutor videoExecutor;
+    @Autowired
+    private VideoAnalyticsMapper videoAnalyticsMapper;
 
     @Override
     public List<VideoMainResponse> getVideos(Long userId) {
@@ -289,6 +292,38 @@ public class VideoServiceImpl implements VideoService {
         });
 
         return videoSearchResponseList;
+    }
+
+    @Override
+    @Transactional
+    public boolean recordView(Long userId, Long videoId) {
+        Long creatorId = videoAnalyticsMapper.selectPublishedCreatorId(videoId);
+        if (creatorId == null) {
+            throw new YHClientException("视频不存在或尚未发布！");
+        }
+        boolean created = videoAnalyticsMapper.insertDailyView(snowflakeUtils.nextId(), videoId, creatorId, userId, LocalDate.now()) == 1;
+        if (created) {
+            videoAnalyticsMapper.incrementView(videoId);
+        }
+        return created;
+    }
+
+    @Override
+    public CreatorAnalyticsOverviewResponse getCreatorAnalytics(Long userId) {
+        CreatorAnalyticsOverviewResponse overview = videoAnalyticsMapper.selectOverview(userId);
+        if (overview == null) {
+            overview = new CreatorAnalyticsOverviewResponse();
+        }
+        LocalDate fromDate = LocalDate.now().minusDays(6);
+        Map<String, Long> viewsByDate = videoAnalyticsMapper.selectDailyViews(userId, fromDate).stream()
+                .collect(Collectors.toMap(CreatorAnalyticsTrendResponse::getDate, CreatorAnalyticsTrendResponse::getViews));
+        List<CreatorAnalyticsTrendResponse> trends = new ArrayList<>(7);
+        for (int offset = 0; offset < 7; offset++) {
+            LocalDate date = fromDate.plusDays(offset);
+            trends.add(new CreatorAnalyticsTrendResponse(date.toString(), viewsByDate.getOrDefault(date.toString(), 0L)));
+        }
+        overview.setTrends(trends);
+        return overview;
     }
 
     @Override

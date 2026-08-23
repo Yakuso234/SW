@@ -18,6 +18,10 @@ public interface VideoService {
 
     List<VideoSearchResponse> searchVideos(String keyword);
 
+    boolean recordView(Long userId, Long videoId);
+
+    CreatorAnalyticsOverviewResponse getCreatorAnalytics(Long userId);
+
     String startUploadPart(Long userId, Integer totalChunks);
 
     Map<Integer, String> presignUploadPart(Long userId, GetPresignUrlRequest getPresignUrlRequest);

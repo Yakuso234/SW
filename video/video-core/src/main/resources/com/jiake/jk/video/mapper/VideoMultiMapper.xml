@@ -5,7 +5,7 @@
 <mapper namespace="com.jiake.jk.video.mapper.multi.VideoMultiMapper">
 
     <sql id="videoFields">
-        v.id, v.creator_id, v.url, v.description, v.likes, v.comments, v.favorites, v.published_at,
+        v.id, v.creator_id, v.url, v.description, v.likes, v.comments, v.favorites, v.views, v.published_at,
         <choose>
             <when test="userId != null">IF(vul.user_id IS NOT NULL, 1, 0)</when>
             <otherwise>0</otherwise>
@@ -61,7 +61,7 @@
     </select>
 
     <select id="selectFollowFeed" resultType="com.jiake.jk.video.pojo.entity.multi.VideoWithInteractionStatus">
-        SELECT i.id AS feed_id, v.id, v.creator_id, v.url, v.description, v.likes, v.comments, v.favorites,
+        SELECT i.id AS feed_id, v.id, v.creator_id, v.url, v.description, v.likes, v.comments, v.favorites, v.views,
                v.published_at,
                IF(vul.user_id IS NOT NULL, 1, 0) AS is_like,
                IF(vuf.user_id IS NOT NULL, 1, 0) AS is_favorite

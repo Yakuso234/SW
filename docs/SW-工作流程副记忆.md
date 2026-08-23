@@ -172,6 +172,16 @@
 - 当前运行状态：Docker 中间件和本轮终端测试服务正在运行；日常开发仍建议由 IDEA 使用 JDK 21 启动 Java 服务。
 - 下一步：提交本轮修复；如需现场演示，在 IDEA 重启 User、Video、Processor、Gateway 后运行同一 E2E 和浏览器流程。
 
+### 2026-08-23：补齐短视频消费与创作者运营最小闭环
+
+- 状态：`已完成并验证`
+- 本次目标：补齐视频/博主搜索、关注内容流、收藏读取、创作者作品管理、粉丝数据和播放趋势，并把展示口径落到真实服务数据。
+- 完成内容：`SW-web` 新增视频/创作者搜索、搜索自动回到 Feed 结果区、关注/取关、我的收藏、资料修改、已发布作品删除、粉丝/关注与互动指标、7 天趋势；视觉增强为原创的夜城数据终端语言（网格、城市剪影、霓虹状态、故障切角），不使用官方素材。Video 新增 `views` 和 `video_view_event`，用每日唯一约束记录观看；新增 `/me/view/{videoId}` 与 `/me/analytics`。接口返回本次是否新计数，前端只在新计数时更新。增加统计迁移脚本和关注流/播放统计 E2E 脚本。
+- 验证证据：`VideoServiceImplTest` 覆盖首次计数、重复不计数和 7 天补零，共 11 个该类测试通过；`SW-web npm run build` 通过。真实 E2E 新建创作者/关注者和 2 秒 MP4，得到 `FollowFeedContainsPublishedVideo=True`、`IsFollowed=True`、`FirstViewCounted=True`、`SecondViewDeduplicated=True`、`UniqueDailyViews=1`、`TrendDays=7`。浏览器验证 Creator Telemetry、7 根趋势柱、创作者搜索结果、收藏异步写入后在 `MY SAVED SIGNALS` 出现，控制台无 error。
+- 新发现的面试价值：写入面试问题第 61—63 题；特别区分短视频关注内容扇出和 Live RTMP 推流，且不把每日去重观看口径描述为生产级反刷量。
+- 当前风险/阻塞：本地统计表由幂等脚本初始化；生产应改用 Flyway/Liquibase 等版本化迁移。观看统计仍缺完播阈值、匿名用户策略、反作弊和离线数仓。Live RTMP、Product、Order、Chat、Admin 仍是存量/后续扩展，不纳入当前完成度。
+- 下一步：提交本轮代码和文档；日常使用由 IDEA 接管 Video 服务。现场演示先执行 `ensure-video-analytics-schema.ps1`，再运行 `verify-follow-feed-e2e.ps1`。
+
 ## 8. 更新模板
 
 ```text

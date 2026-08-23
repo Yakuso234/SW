@@ -21,6 +21,7 @@ public class VideoMainResponse {
     private Long likes;
     private Long comments;
     private Long favorites;
+    private Long views;
     private Boolean isFollowed;
     private Boolean isLike;
     private Boolean isFavorite;

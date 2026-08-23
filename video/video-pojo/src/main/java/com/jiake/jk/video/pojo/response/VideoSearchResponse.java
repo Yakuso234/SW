@@ -18,4 +18,5 @@ public class VideoSearchResponse {
     private String description;
     private String coverUrl;
     private Long likes;
+    private Long views;
 }

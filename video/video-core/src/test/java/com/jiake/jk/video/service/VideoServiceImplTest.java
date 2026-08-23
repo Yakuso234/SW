@@ -6,7 +6,9 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiake.jk.common.utils.AWSUtils;
+import com.jiake.jk.common.utils.SnowflakeUtils;
 import com.jiake.jk.video.mapper.MessageOutBoxMapper;
+import com.jiake.jk.video.mapper.VideoAnalyticsMapper;
 import com.jiake.jk.video.mapper.VideoMapper;
 import com.jiake.jk.video.mapper.VideoTagMapper;
 import com.jiake.jk.video.mapper.VideoTagMpMapper;
@@ -21,6 +23,8 @@ import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
 import com.jiake.jk.video.pojo.request.GetPresignUrlRequest;
 import com.jiake.jk.video.pojo.request.PostVideoMessageRequest;
 import com.jiake.jk.video.pojo.response.PublishedFeedResponse;
+import com.jiake.jk.video.pojo.response.CreatorAnalyticsOverviewResponse;
+import com.jiake.jk.video.pojo.response.CreatorAnalyticsTrendResponse;
 import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
 import com.jiake.jk.video.service.impl.VideoServiceImpl;
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +40,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -63,6 +68,8 @@ class VideoServiceImplTest {
     @Mock private MessageOutBoxMapper messageOutBoxMapper;
     @Mock private VideoProcessingTaskMapper videoProcessingTaskMapper;
     @Mock private VideoMultiMapper videoMultiMapper;
+    @Mock private VideoAnalyticsMapper videoAnalyticsMapper;
+    @Mock private SnowflakeUtils snowflakeUtils;
     @Mock private AWSUtils awsUtils;
     @Mock private MultipartFile cover;
 
@@ -228,6 +235,47 @@ class VideoServiceImplTest {
         verify(videoProcessingTaskMapper, never()).selectOne(any());
     }
 
+    @Test
+    void recordView_shouldIncrementOnlyWhenDailyEventIsNew() {
+        VideoServiceImpl service = newService();
+        when(videoAnalyticsMapper.selectPublishedCreatorId(801L)).thenReturn(1001L);
+        when(snowflakeUtils.nextId()).thenReturn(9001L);
+        when(videoAnalyticsMapper.insertDailyView(eq(9001L), eq(801L), eq(1001L), eq(2001L), any(LocalDate.class)))
+                .thenReturn(1);
+
+        assertTrue(service.recordView(2001L, 801L));
+
+        verify(videoAnalyticsMapper).incrementView(801L);
+    }
+
+    @Test
+    void recordView_shouldNotIncrementWhenDailyEventAlreadyExists() {
+        VideoServiceImpl service = newService();
+        when(videoAnalyticsMapper.selectPublishedCreatorId(802L)).thenReturn(1001L);
+        when(snowflakeUtils.nextId()).thenReturn(9002L);
+        when(videoAnalyticsMapper.insertDailyView(eq(9002L), eq(802L), eq(1001L), eq(2001L), any(LocalDate.class)))
+                .thenReturn(0);
+
+        assertTrue(!service.recordView(2001L, 802L));
+
+        verify(videoAnalyticsMapper, never()).incrementView(802L);
+    }
+
+    @Test
+    void getCreatorAnalytics_shouldFillMissingDatesInSevenDayTrend() {
+        VideoServiceImpl service = newService();
+        CreatorAnalyticsOverviewResponse overview = new CreatorAnalyticsOverviewResponse();
+        overview.setPublishedCount(2L);
+        when(videoAnalyticsMapper.selectOverview(1001L)).thenReturn(overview);
+        when(videoAnalyticsMapper.selectDailyViews(eq(1001L), any(LocalDate.class)))
+                .thenReturn(List.of(new CreatorAnalyticsTrendResponse(LocalDate.now().toString(), 3L)));
+
+        CreatorAnalyticsOverviewResponse result = service.getCreatorAnalytics(1001L);
+
+        assertEquals(7, result.getTrends().size());
+        assertEquals(3L, result.getTrends().get(6).getViews());
+    }
+
     private VideoServiceImpl newService() {
         VideoServiceImpl service = new VideoServiceImpl();
         ReflectionTestUtils.setField(service, "videoMapper", videoMapper);
@@ -237,6 +285,8 @@ class VideoServiceImplTest {
         ReflectionTestUtils.setField(service, "messageOutBoxMapper", messageOutBoxMapper);
         ReflectionTestUtils.setField(service, "videoProcessingTaskMapper", videoProcessingTaskMapper);
         ReflectionTestUtils.setField(service, "videoMultiMapper", videoMultiMapper);
+        ReflectionTestUtils.setField(service, "videoAnalyticsMapper", videoAnalyticsMapper);
+        ReflectionTestUtils.setField(service, "snowflakeUtils", snowflakeUtils);
         ReflectionTestUtils.setField(service, "awsUtils", awsUtils);
         ReflectionTestUtils.setField(service, "objectMapper", objectMapper);
         return service;

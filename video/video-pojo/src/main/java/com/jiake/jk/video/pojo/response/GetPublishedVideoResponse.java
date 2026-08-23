@@ -16,5 +16,6 @@ public class GetPublishedVideoResponse {
     Long likes;
     Long comments;
     Long favorites;
+    Long views;
     LocalDateTime createdTime;
 }
