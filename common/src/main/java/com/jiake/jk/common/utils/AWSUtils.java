@@ -37,6 +37,9 @@ public class AWSUtils {
 
     private String bucket;
 
+    /** 浏览器访问私有对象时使用的预签名地址有效期。 */
+    private int accessUrlExpirationMinutes = 60;
+
     private S3Client client;
 
     private S3Presigner presigner;
@@ -328,7 +331,10 @@ public class AWSUtils {
     }
 
     public String generateAccessUrl(String key) {
-        return url + "/" + bucket + "/" + key;
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        return presignGetObject(key, accessUrlExpirationMinutes);
     }
 
     public String generateKey() {

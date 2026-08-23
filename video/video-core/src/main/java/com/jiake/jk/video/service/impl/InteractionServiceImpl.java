@@ -251,7 +251,8 @@ public class InteractionServiceImpl implements InteractionService {
             throw new YHServerException(result.getMsg());
         }
         // 建立用户id到用户数据的字典
-        List<UserInfoInListResponse> userInfoList = result.getData();
+        List<UserInfoInListResponse> userInfoList = Optional.ofNullable(result.getData())
+                .orElseGet(Collections::emptyList);
         Map<Long, UserInfoInListResponse> userInfoMap = new HashMap<>(userInfoList.size());
         for (UserInfoInListResponse userInfo : userInfoList) {
             userInfoMap.put(userInfo.getId(), userInfo);
@@ -259,8 +260,13 @@ public class InteractionServiceImpl implements InteractionService {
         // 完善comment数据
         directCommentResponseList.forEach(getCommentResponse -> {
             UserInfoInListResponse userInfo = userInfoMap.get(getCommentResponse.getUserId());
-            getCommentResponse.setName(userInfo.getName());
-            getCommentResponse.setAvatarUrl(userInfo.getAvatarUrl());
+            if (userInfo == null) {
+                getCommentResponse.setName("已注销用户");
+                getCommentResponse.setAvatarUrl(null);
+            } else {
+                getCommentResponse.setName(userInfo.getName());
+                getCommentResponse.setAvatarUrl(userInfo.getAvatarUrl());
+            }
         });
 
         return directCommentResponseList;
@@ -288,7 +294,8 @@ public class InteractionServiceImpl implements InteractionService {
             throw new YHServerException(result.getMsg());
         }
         // 建立用户id到用户数据的字典
-        List<UserInfoInListResponse> userInfoList = result.getData();
+        List<UserInfoInListResponse> userInfoList = Optional.ofNullable(result.getData())
+                .orElseGet(Collections::emptyList);
         Map<Long, UserInfoInListResponse> userInfoMap = new HashMap<>(userInfoList.size());
         for (UserInfoInListResponse userInfo : userInfoList) {
             userInfoMap.put(userInfo.getId(), userInfo);
@@ -298,10 +305,10 @@ public class InteractionServiceImpl implements InteractionService {
             UserInfoInListResponse senderInfo = userInfoMap.get(replyCommentResponse.getSenderId());
             UserInfoInListResponse receiverInfo = userInfoMap.get(replyCommentResponse.getReceiverId());
 
-            replyCommentResponse.setSenderName(senderInfo.getName());
-            replyCommentResponse.setSenderAvatar(senderInfo.getAvatarUrl());
-            replyCommentResponse.setReceiverName(receiverInfo.getName());
-            replyCommentResponse.setReceiverAvatar(receiverInfo.getAvatarUrl());
+            replyCommentResponse.setSenderName(senderInfo == null ? "已注销用户" : senderInfo.getName());
+            replyCommentResponse.setSenderAvatar(senderInfo == null ? null : senderInfo.getAvatarUrl());
+            replyCommentResponse.setReceiverName(receiverInfo == null ? "已注销用户" : receiverInfo.getName());
+            replyCommentResponse.setReceiverAvatar(receiverInfo == null ? null : receiverInfo.getAvatarUrl());
         }
 
         return replyCommentResponseList;

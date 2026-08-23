@@ -161,6 +161,17 @@
 - 当前风险/阻塞：重启 Processor 前不要运行成功 E2E，否则任务会因找不到 FFmpeg 进入失败状态；真实 Feed 仍无本地公开视频。
 - 下一步：重启 IDEA 后运行 `scripts/verify-video-e2e.ps1` 生成真实 `PUBLISHED` 视频，再验证前端 `<video>` 播放、评论和互动。
 
+### 2026-08-23：完成真实视频播放与互动闭环
+
+- 状态：`已完成并验证`
+- 本次目标：解决公开视频无法播放、点赞评论不可用，并把前端调整为登录后才能访问具体业务页面。
+- 完成内容：为 `sw-dev` MinIO 幂等初始化五个私有 Bucket；视频访问改为 60 分钟预签名 GET；评论聚合对缺失/注销用户降级；公共对象工具对空头像 Key 返回 null；前端修正评论作者字段并增加独立身份门禁。
+- 验证证据：真实视频 `2091483955474989057` 达到 `PUBLISHED / SUCCEEDED / Outbox SUCCESS`；Gateway 与 Video Feed 均返回 1 条数据；签名媒体 Range 请求 HTTP 206；浏览器 `<video>` 为 `readyState=4`、时长 2 秒、无 error；JWT 注册登录、点赞、收藏、评论写入和回读业务码均为 1；浏览器点赞从 3 变 4，评论可见且作者为“路人甲”；注销用户评论降级为“已注销用户”；退出后业务页面重新隐藏。
+- 自动化证据：`InteractionServiceImplTest` 2/2、`AWSUtilsTest` 1/1 通过；`SW-web npm run build` 成功；浏览器控制台无 warning/error。
+- 新发现的面试价值：写入面试问题第 57—60 题，覆盖基础设施就绪与业务资源就绪、私有对象签名访问、跨服务聚合部分失败、空对象 Key 边界和前后端双层认证策略。
+- 当前运行状态：Docker 中间件和本轮终端测试服务正在运行；日常开发仍建议由 IDEA 使用 JDK 21 启动 Java 服务。
+- 下一步：提交本轮修复；如需现场演示，在 IDEA 重启 User、Video、Processor、Gateway 后运行同一 E2E 和浏览器流程。
+
 ## 8. 更新模板
 
 ```text

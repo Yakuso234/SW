@@ -45,7 +45,7 @@ flowchart LR
 - AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；调用链支持 TraceId 追踪到 Video Service。
 - 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。
 - 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，收敛为竖向公开视频/关注 Feed、播放、搜索、互动、可靠投稿工作台、处理状态/失败诊断和 AI 助手；已通过生产构建、浏览器页面和控制台检查，视觉采用原创的 2077 式赛博朋克 HUD 风格，不包含官方 Logo、角色原画或游戏素材。
-- 重装系统后已重新验证 Docker 中间件、Nacos 配置导入、Gateway Java 21 启动和前端构建；完整多服务真实 E2E 需要启动 User、Video、Video Processor、AI 后再复验。
+- 重装系统后已重新验证 Docker 中间件、Nacos 配置导入、Java 21 服务、真实视频 E2E、私有 MinIO 签名播放、JWT 互动和前端浏览器流程；AI 模型链路仍需要本机有效的 `QWEN_API_KEY`。
 - 固定开发机曾完成 1 次预热和 5 次串行端到端样本，P50 为 3500 ms、P95 为 3506 ms；它仅是历史同机回归基线，非生产吞吐结论。
 
 后续工程化工作：
@@ -157,6 +157,8 @@ SW 使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷不�
 .\scripts\start-sw-infra.ps1 -Observability
 ```
 
+脚本还会幂等创建 `video`、`user`、`product`、`live`、`chat` 五个私有 MinIO Bucket。对象不会开放匿名读取：上传使用预签名 PUT，Feed 播放使用后端生成的短期预签名 GET URL。
+
 ### 导入 Nacos 配置
 
 ```powershell
@@ -207,11 +209,11 @@ npm install
 npm run dev
 ```
 
-浏览器访问 `http://127.0.0.1:18888`。Vite 会把 `/user`、`/video` 和 `/ai` 请求代理到 Gateway `10086`；前端只负责展示和发起业务请求，大文件仍走后端返回的 MinIO 预签名 URL。
+浏览器访问 `http://127.0.0.1:18888`。未登录时只显示身份接入终端，注册或登录后才显示 Feed、Creator Ops 和 AI Assistant。Vite 会把 `/user`、`/video` 和 `/ai` 请求代理到 Gateway `10086`；前端只负责展示和发起业务请求，大文件与播放媒体都使用后端返回的 MinIO 预签名 URL。
 
 Public Feed 只返回 `status=PUBLISHED` 且存在 `published_at` 的视频。Video Service 健康但本地数据库没有已发布数据时，页面会显示 `NO PUBLISHED SIGNALS`；这不代表接口故障。需要启动 Video Processor 并通过 Creator Ops 或 E2E 脚本完成一次真实上传、转码和发布。IDEA 启动 Processor 的本机环境需要可用的 FFmpeg。
 
-如果只想检查页面视觉和交互，不启动 Java 服务也可以访问；此时 Feed 会进入明确标注的 Demo Data 模式。要演示真实链路，先启动 User、Video、Video Processor、Gateway，AI 页面再额外启动 AI Service。
+登录门禁需要 User 与 Gateway 可用。登录后如果 Video 暂时不可用，Feed 才会进入明确标注的 Demo Data 模式；要演示真实链路，启动 User、Video、Video Processor、Gateway，AI 页面再额外启动 AI Service。
 
 AI 前后端联调需要先在前端完成注册或登录，因为 Gateway 会从 JWT 提取用户 ID，AI 工具再用该身份限制视频查询范围。登录后进入 `AI // OPS ASSISTANT`，可先发送“给我 3 个短视频标题建议”验证基础 SSE 流式响应；再携带本人真实 `videoId` 询问处理进度或失败原因，验证 AI -> Video 私有接口的只读 Tool Calling。浏览器请求路径为 `POST /ai/api/creator-assistant/stream`，响应事件依次包含 `meta`、多个 `delta`，最后为 `done`；失败时返回 `error` 事件。
 

@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiake.jk.common.utils.SnowflakeUtils;
+import com.jiake.jk.common.response.Result;
 import com.jiake.jk.user.feign.UserPrivateClient;
 import com.jiake.jk.video.mapper.MessageOutBoxMapper;
 import com.jiake.jk.video.mapper.VideoMapper;
@@ -13,6 +14,8 @@ import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.mq.VideoCommentMessage;
 import com.jiake.jk.video.pojo.request.PostCommentRequest;
+import com.jiake.jk.video.pojo.response.GetDirectCommentResponse;
+import com.jiake.jk.video.pojo.entity.VideoUserComment;
 import com.jiake.jk.video.service.impl.InteractionServiceImpl;
 import com.jiake.jk.video.template.FavoriteInteraction;
 import com.jiake.jk.video.template.LikeInteraction;
@@ -22,6 +25,9 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -76,6 +82,30 @@ class InteractionServiceImplTest {
         VideoCommentMessage event = new ObjectMapper().readValue(outboxCaptor.getValue().getMessageBody(), VideoCommentMessage.class);
         assertEquals(1001L, event.getId());
         assertEquals(1001L, event.getRootId());
+    }
+
+    @Test
+    void directComment_shouldKeepCommentVisibleWhenUserProfileIsMissing() throws Exception {
+        VideoUserCommentMapper commentMapper = mock(VideoUserCommentMapper.class);
+        UserPrivateClient userPrivateClient = mock(UserPrivateClient.class);
+        VideoUserComment comment = new VideoUserComment();
+        comment.setId(5001L);
+        comment.setVideoId(2001L);
+        comment.setUserId(900002L);
+        comment.setContent("用户资料缺失时评论仍可见");
+        when(commentMapper.selectDirectComment(2001L, null)).thenReturn(List.of(comment));
+        when(userPrivateClient.getUserInfoInList(List.of(900002L)))
+                .thenReturn(Result.success(Collections.emptyList()));
+
+        InteractionServiceImpl service = new InteractionServiceImpl();
+        inject(service, "videoUserCommentMapper", commentMapper);
+        inject(service, "userPrivateClient", userPrivateClient);
+
+        List<GetDirectCommentResponse> result = service.directComment(2001L, null);
+
+        assertEquals(1, result.size());
+        assertEquals("已注销用户", result.get(0).getName());
+        assertEquals("用户资料缺失时评论仍可见", result.get(0).getContent());
     }
 
     private static void inject(Object target, String fieldName, Object value) throws ReflectiveOperationException {

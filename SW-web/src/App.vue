@@ -104,7 +104,7 @@ async function sendComment() { if (!requireLogin() || !selectedVideo.value || !c
 async function submitAuth() {
   try {
     if (authMode.value === 'register') { await register(authForm.value); authMode.value = 'login'; showNotice('注册成功，请登录') }
-    else { const result = await login(authForm.value); setToken(result); token.value = result; authOpen.value = false; await loadProfile(); showNotice('身份验证通过，欢迎回到 SIGNAL.WAVE') }
+    else { const result = await login(authForm.value); setToken(result); token.value = result; authOpen.value = false; await loadProfile(); await loadFeed(); showNotice('身份验证通过，欢迎回到 SIGNAL.WAVE') }
   } catch (error) { showNotice(error.message, 'error') }
 }
 async function loadProfile() { if (!isLoggedIn.value) return; try { profile.value = await getProfile() } catch { profile.value = null } }
@@ -140,12 +140,36 @@ function setView(next) { view.value = next; if (next === 'feed') loadFeed(); if 
 function formatCount(value) { const n = Number(value || 0); return n > 9999 ? `${(n / 10000).toFixed(1)}W` : n }
 function scrollToFeed() { document.querySelector('.signal-deck, .feed-empty')?.scrollIntoView({ behavior: 'smooth' }) }
 
-onMounted(async () => { await loadProfile(); await loadFeed() })
+onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadFeed() } })
 </script>
 
 <template>
   <div class="app-shell">
     <div class="scanlines"></div>
+    <section v-if="!isLoggedIn" class="auth-gate">
+      <div class="auth-gate-art">
+        <div class="auth-grid"></div>
+        <div class="auth-code">77</div>
+        <div class="danger-tag">RESTRICTED // IDENTITY REQUIRED</div>
+        <div class="eyebrow">SIGNAL.WAVE / NIGHT DISTRICT ACCESS NODE</div>
+        <h1>接入你的<br><em>神经信号。</em></h1>
+        <p>登录后进入公开视频流、点赞收藏评论、创作者投稿链路和 AI 运营助手。所有具体业务页面都受身份门禁保护。</p>
+        <div class="auth-capabilities"><span>FEED</span><span>CREATOR OPS</span><span>AI ASSISTANT</span></div>
+      </div>
+      <form class="auth-terminal" @submit.prevent="submitAuth">
+        <div class="brand auth-brand"><span class="brand-mark">SW</span><span class="brand-copy"><strong>SIGNAL.WAVE</strong><small>IDENTITY TERMINAL</small></span></div>
+        <div class="eyebrow">AUTH CHANNEL // {{ authMode === 'login' ? 'CONNECT' : 'ENROLL' }}</div>
+        <h2>{{ authMode === 'login' ? '身份接入' : '创建身份' }}</h2>
+        <div v-if="notice" class="status-strip" :class="noticeType">{{ notice }}</div>
+        <div class="form-row"><label>PHONE NUMBER</label><input v-model="authForm.phoneNumber" class="field" autocomplete="username" required /></div>
+        <div class="form-row"><label>PASSWORD / MIN 12 CHARACTERS</label><input v-model="authForm.password" class="field" type="password" autocomplete="current-password" minlength="12" required /></div>
+        <button class="btn yellow auth-submit">{{ authMode === 'login' ? 'JACK IN →' : 'CREATE IDENTITY →' }}</button>
+        <button type="button" class="btn ghost auth-switch" @click="authMode = authMode === 'login' ? 'register' : 'login'">{{ authMode === 'login' ? '没有身份？注册' : '已有身份？登录' }}</button>
+        <small class="auth-hint">LOCAL DEV NODE // JWT AUTHENTICATION // GATEWAY 10086</small>
+      </form>
+    </section>
+
+    <template v-else>
     <header class="topbar">
       <button class="brand" @click="setView('feed')">
         <span class="brand-mark">SW</span><span class="brand-copy"><strong>SIGNAL.WAVE</strong><small>SHORT VIDEO // OPS</small></span>
@@ -212,7 +236,7 @@ onMounted(async () => { await loadProfile(); await loadFeed() })
       </template>
     </main>
 
-    <div v-if="selectedVideo" class="modal-backdrop" @click.self="selectedVideo = null"><div class="modal"><button class="modal-close" @click="selectedVideo = null">×</button><h2>VIDEO // {{ selectedVideo.id }}</h2><div class="video-detail"><div class="video-player"><video v-if="selectedVideo.url" :src="mediaUrl(selectedVideo.url)" controls></video><div v-else class="poster" :style="{ '--a': selectedVideo.palette?.[0], '--b': selectedVideo.palette?.[1], width: '100%', height: '100%' }"><span>MEDIA PREVIEW</span></div></div><div><p class="lede" style="font-size: 16px;">{{ selectedVideo.description }}</p><div class="meta" style="margin: 20px 0;">@{{ selectedVideo.creatorName || 'UNKNOWN' }} · {{ formatCount(selectedVideo.comments) }} comments</div><div class="comment-list"><div v-for="comment in comments" :key="comment.id" class="comment"><b>{{ comment.senderName || comment.userName || 'ANONYMOUS' }}</b><p>{{ comment.content }}</p></div><div v-if="!comments.length" class="empty">暂无评论信号</div></div><form v-if="isLoggedIn" class="chat-compose" style="padding: 18px 0 0;" @submit.prevent="sendComment"><input v-model="commentText" class="field" placeholder="留下你的信号..." /><button class="btn small">POST</button></form></div></div></div></div>
-    <div v-if="authOpen" class="modal-backdrop" @click.self="authOpen = false"><form class="modal narrow" @submit.prevent="submitAuth"><button type="button" class="modal-close" @click="authOpen = false">×</button><h2>{{ authMode === 'login' ? 'IDENTITY // LOGIN' : 'IDENTITY // REGISTER' }}</h2><div class="form-row"><label>PHONE NUMBER</label><input v-model="authForm.phoneNumber" class="field" required /></div><div class="form-row"><label>PASSWORD</label><input v-model="authForm.password" class="field" type="password" required /></div><button class="btn" style="width:100%;">{{ authMode === 'login' ? 'CONNECT' : 'CREATE IDENTITY' }}</button><button type="button" class="btn ghost" style="width:100%; margin-top: 12px;" @click="authMode = authMode === 'login' ? 'register' : 'login'">{{ authMode === 'login' ? '没有身份？注册' : '已有身份？登录' }}</button></form></div>
+    <div v-if="selectedVideo" class="modal-backdrop" @click.self="selectedVideo = null"><div class="modal"><button class="modal-close" @click="selectedVideo = null">×</button><h2>VIDEO // {{ selectedVideo.id }}</h2><div class="video-detail"><div class="video-player"><video v-if="selectedVideo.url" :src="mediaUrl(selectedVideo.url)" controls></video><div v-else class="poster" :style="{ '--a': selectedVideo.palette?.[0], '--b': selectedVideo.palette?.[1], width: '100%', height: '100%' }"><span>MEDIA PREVIEW</span></div></div><div><p class="lede" style="font-size: 16px;">{{ selectedVideo.description }}</p><div class="meta" style="margin: 20px 0;">@{{ selectedVideo.creatorName || 'UNKNOWN' }} · {{ formatCount(selectedVideo.comments) }} comments</div><div class="comment-list"><div v-for="comment in comments" :key="comment.id" class="comment"><b>{{ comment.name || comment.senderName || comment.userName || 'ANONYMOUS' }}</b><p>{{ comment.content }}</p></div><div v-if="!comments.length" class="empty">暂无评论信号</div></div><form v-if="isLoggedIn" class="chat-compose" style="padding: 18px 0 0;" @submit.prevent="sendComment"><input v-model="commentText" class="field" placeholder="留下你的信号..." /><button class="btn small">POST</button></form></div></div></div></div>
+    </template>
   </div>
 </template>

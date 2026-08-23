@@ -108,5 +108,19 @@ body { background: var(--cy-ink); }
 .panel h3, .ai-sidebar h3, .modal h2 { color: var(--cy-yellow); text-shadow: 2px 2px 0 rgba(255,42,109,.6); }
 .ai-quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }.ai-quick-grid .btn { width: 100%; min-height: 44px; padding-inline: 8px; }
 
-@media (max-width: 900px) { .signal-deck { grid-template-columns: 1fr; }.feed-rail { display: none; }.signal-copy { grid-template-columns: 1fr; }.signal-actions { justify-content: flex-start; }.cp-hero { min-height: auto; }.mega-code { font-size: 190px; } }
+.auth-gate { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(360px, .8fr); min-height: 100vh; }
+.auth-gate-art { position: relative; display: flex; flex-direction: column; justify-content: center; min-height: 100vh; padding: clamp(48px, 8vw, 120px); overflow: hidden; border-right: 2px solid var(--cy-yellow); background: radial-gradient(circle at 70% 40%, rgba(0,240,255,.2), transparent 26%), linear-gradient(135deg, rgba(255,42,109,.12), transparent 50%), #070a10; }
+.auth-gate-art::after { content: 'SECURE NEURAL HANDSHAKE // STANDBY'; position: absolute; left: clamp(48px, 8vw, 120px); bottom: 38px; color: var(--cy-cyan); font: 10px 'Share Tech Mono'; letter-spacing: .18em; }
+.auth-grid { position: absolute; inset: 0; opacity: .2; background-image: linear-gradient(rgba(0,240,255,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(0,240,255,.18) 1px,transparent 1px); background-size: 54px 54px; transform: perspective(650px) rotateX(58deg) translateY(45%); transform-origin: bottom; }
+.auth-code { position: absolute; right: -18px; top: 2vh; color: transparent; -webkit-text-stroke: 2px rgba(247,239,11,.7); font-size: clamp(220px, 34vw, 520px); font-weight: 800; line-height: .8; letter-spacing: -.14em; opacity: .6; transform: skewX(-9deg); }
+.auth-gate-art > *:not(.auth-grid,.auth-code) { position: relative; z-index: 1; }
+.auth-gate-art h1 { max-width: 760px; margin: 22px 0; color: #fff; font-size: clamp(68px, 9vw, 142px); line-height: .78; font-style: italic; letter-spacing: -.065em; text-transform: uppercase; transform: skewX(-5deg); text-shadow: 7px 6px 0 rgba(255,42,109,.58); }
+.auth-gate-art h1 em { color: var(--cy-yellow); font-style: normal; text-shadow: 5px 4px 0 var(--cy-red),-3px -2px 0 var(--cy-cyan); }
+.auth-gate-art p { max-width: 650px; color: #91aab3; font: 15px/1.65 'Share Tech Mono'; }
+.auth-capabilities { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 26px; }.auth-capabilities span { padding: 7px 10px; color: var(--cy-yellow); border: 1px solid rgba(247,239,11,.52); font: 10px 'Share Tech Mono'; letter-spacing: .12em; }
+.auth-terminal { display: flex; flex-direction: column; justify-content: center; padding: clamp(34px, 6vw, 88px); background: rgba(5,8,14,.96); box-shadow: inset 18px 0 0 rgba(247,239,11,.025); }
+.auth-brand { margin-bottom: 72px; }.auth-terminal h2 { margin: 10px 0 30px; color: var(--cy-yellow); font-size: 48px; font-style: italic; text-transform: uppercase; text-shadow: 3px 3px 0 var(--cy-red); }
+.auth-submit,.auth-switch { width: 100%; min-height: 48px; }.auth-switch { margin-top: 12px; }.auth-hint { margin-top: 28px; color: #536e78; font: 10px 'Share Tech Mono'; letter-spacing: .11em; text-align: center; }
+
+@media (max-width: 900px) { .auth-gate { grid-template-columns: 1fr; }.auth-gate-art { min-height: 46vh; border-right: 0; border-bottom: 2px solid var(--cy-yellow); }.auth-terminal { min-height: 54vh; }.auth-brand { margin-bottom: 34px; }.signal-deck { grid-template-columns: 1fr; }.feed-rail { display: none; }.signal-copy { grid-template-columns: 1fr; }.signal-actions { justify-content: flex-start; }.cp-hero { min-height: auto; }.mega-code { font-size: 190px; } }
 @media (max-width: 600px) { .cp-art { min-height: 320px; }.hero-copy h2 { font-size: 56px; }.cp-art .hero-card { width: 78%; }.signal-copy h3 { font-size: 24px; }.signal-actions { width: 100%; }.action-key { flex: 1; min-width: 0; }.media-stage,.media-stage video,.media-stage .poster { min-height: 52vh; height: 52vh; }.app-shell::before { display: none; } }

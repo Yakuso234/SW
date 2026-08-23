@@ -35,3 +35,5 @@ if ($Observability) {
 }
 
 & $docker compose --project-name $projectName ps
+
+& (Join-Path $PSScriptRoot 'init-minio-buckets.ps1')
