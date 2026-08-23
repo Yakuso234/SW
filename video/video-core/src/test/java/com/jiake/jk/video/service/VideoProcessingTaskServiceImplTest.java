@@ -23,6 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
@@ -33,6 +34,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -111,6 +113,18 @@ class VideoProcessingTaskServiceImplTest {
         verify(messageOutBoxMapper).insert(outboxCaptor.capture());
         assertEquals(902L, outboxCaptor.getValue().getBusinessId());
         assertEquals(MessageOutbox.OutboxStatus.PENDING, outboxCaptor.getValue().getStatus());
+    }
+
+    @Test
+    void recoverExpiredProcessingTasks_shouldSkipScheduledRecoveryWhenDisabled() {
+        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
+                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, objectMapper, outboxMessagePublisher, rabbitAdmin);
+        ReflectionTestUtils.setField(service, "automaticRecoveryEnabled", false);
+
+        assertEquals(0, service.recoverExpiredProcessingTasks());
+
+        verify(videoProcessingTaskMapper, never()).selectList(any());
+        verify(messageOutBoxMapper, never()).insert(any());
     }
 
     @Test

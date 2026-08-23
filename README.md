@@ -253,6 +253,8 @@ AI 前后端联调需要先在前端完成注册或登录，因为 Gateway 会�
 
 默认处理租约为 600 秒。为缩短**仅本地**演练等待，可在 Video Service 临时增加 `--sw.video-processing.lease-seconds=20 --sw.video-processing.recovery-delay-ms=3000`；演练结束必须移除这些参数并恢复默认租约。
 
+若需要把“过期任务预检”和“恢复触发”交给人工或外部编排器分别验证，可只在本地 Video Service 的运行参数中增加 `--sw.video-processing.automatic-recovery-enabled=false`。这只暂停定时扫描，`POST /video/api/private/processing/{videoId}/recover-expired` 仍可执行恢复；联调结束后删除该参数，避免把本地演练开关带入常规运行。
+
 DLQ 运维入口（仅服务内网调用，当前不经 Gateway 暴露）：
 
 ```text

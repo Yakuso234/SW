@@ -192,6 +192,16 @@
 - 当前风险/阻塞：`.file/sql/yh.sql` 中的历史表与本机已有 MinIO Bucket 暂不删除，避免把模块收敛扩大为数据销毁；后续若需要重建空开发库，再单独设计版本化迁移。
 - 下一步：提交推送；后续若清理历史 SQL 表或已有对象存储数据，必须单独设计迁移与备份方案。
 
+### 2026-08-23：隔离外部恢复编排联调与自动恢复竞态
+
+- 状态：`已完成并验证`
+- 本次目标：为 DG 等外部恢复执行器提供可重复的过期租约恢复验证，避免 Video 自动扫描抢先改变测试状态。
+- 完成内容：发现隔离的 `PROCESSING + 过期 lease` 测试任务会被 Video 定时恢复、Outbox 和 Processor 正常链路先消费；伪源对象随后导致 S3 404、任务变为 `REJECTED / FAILED`，不能归因于外部执行器。新增 `sw.video-processing.automatic-recovery-enabled`（默认 `true`）；仅本地设为 `false` 时暂停定时扫描，私有人工恢复接口不受影响。README 说明了参数和恢复方式。
+- 验证证据：新增单测断言关闭开关时定时方法返回 0，且不查询任务、不创建 Outbox；该测试类 5/5 通过。真实联调使用 `creatorId=161048163216523264`、`videoId=7321572775443310` 和可读 MinIO 源对象：DG 完成真实状态调查、LangGraph 提案、HITL 审批和私有恢复调用，SW 返回 `data=true`；后验数据库为 Video `PUBLISHED`、ProcessingTask `SUCCEEDED/retryCount=1/lease=null`，恢复与发布两条 Outbox 均为 `SUCCESS`。
+- 新发现的面试价值：已写入面试问题第 64 题。异步系统的故障演练必须隔离背景补偿器，否则无法把状态变化可靠归因到被测执行器；测试输入也必须是可读业务资源。
+- 当前风险/阻塞：核心联调无阻塞；SW 私有接口仍缺服务 Token/mTLS 入站校验，本次属于受控本地双项目集成，不是生产零信任证明。
+- 下一步：删除 Video IDEA Run Configuration 中临时的 `--sw.video-processing.automatic-recovery-enabled=false` 并重启，恢复默认定时补偿；提交并推送本轮 SW 代码与共享文档。
+
 ## 8. 更新模板
 
 ```text

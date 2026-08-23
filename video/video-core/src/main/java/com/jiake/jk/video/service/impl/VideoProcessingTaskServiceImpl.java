@@ -44,6 +44,13 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
     @Value("${sw.video-processing.lease-seconds:600}")
     private long leaseSeconds = DEFAULT_LEASE_SECONDS;
 
+    /**
+     * 自动扫描默认开启。仅本地故障演练可暂停扫描，以便由人工或外部恢复编排器稳定地触发一次恢复。
+     * 手工恢复接口不受此开关影响。
+     */
+    @Value("${sw.video-processing.automatic-recovery-enabled:true}")
+    private boolean automaticRecoveryEnabled = true;
+
     private final VideoProcessingTaskMapper videoProcessingTaskMapper;
     private final VideoMapper videoMapper;
     private final MessageOutBoxMapper messageOutBoxMapper;
@@ -125,6 +132,10 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
     @Transactional
     @Scheduled(fixedDelayString = "${sw.video-processing.recovery-delay-ms:60000}")
     public int recoverExpiredProcessingTasks() {
+        if (!automaticRecoveryEnabled) {
+            log.debug("Automatic expired video-processing recovery is disabled for this runtime");
+            return 0;
+        }
         LocalDateTime now = LocalDateTime.now();
         List<VideoProcessingTask> expiredTasks = videoProcessingTaskMapper.selectList(
                 new LambdaQueryWrapper<VideoProcessingTask>()
