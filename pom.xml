@@ -11,15 +11,10 @@
         <module>parent</module>
         <module>common</module>
         <module>gateway</module>
-        <module>admin</module>
         <module>user</module>
         <module>video</module>
         <module>video-processor</module>
-        <module>product</module>
-        <module>order</module>
-        <module>live</module>
         <module>ai</module>
-        <module>chat</module>
         <module>mcp-server</module>
     </modules>
 </project>

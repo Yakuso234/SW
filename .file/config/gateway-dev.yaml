@@ -13,36 +13,15 @@ spring:
                   uri: lb://videoService
                   predicates:
                     - Path=/video/**
-                - id: productService1
-                  uri: lb://productService
-                  predicates:
-                    - Path=/product/**
-                - id: orderService1
-                  uri: lb://orderService
-                  predicates:
-                    - Path=/order/**
-                - id: liveService1
-                  uri: lb://liveService
-                  predicates:
-                    - Path=/live/**
                 - id: aiService1
                   uri: lb://aiService
                   predicates:
                     - Path=/ai/**
-                - id: chatService1
-                  uri: lb://chatService
-                  predicates:
-                    - Path=/chat/**
-                - id: adminService1
-                  uri: lb://adminService
-                  predicates:
-                    - Path=/admin/**
 
 gateway:
     auth:
         excludePaths:
             - /*/api/public/**
-            - /admin/**
             - /*/v3/api-docs/**
     rate-limit:
         enabled: true

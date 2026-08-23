@@ -1,6 +1,0 @@
-package com.jiake.jk.product.constant;
-
-public class RedisConstant {
-    public final static String SKU_STOCK_LOCK_KEY_PREFIX = "sku:stock:lock:";
-    public final static String SKU_STOCK_KEY_PREFIX = "sku:stock:";
-}

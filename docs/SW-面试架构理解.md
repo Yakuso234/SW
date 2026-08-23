@@ -48,7 +48,8 @@ flowchart LR
 | `video-processor` | MQ 消费、FFmpeg、MinIO 产物处理、互动批处理 | 异步计算服务 |
 | `ai` | WebFlux、SSE、Spring AI、创作者工具、R2DBC/Redis 会话 | 受控 AI 能力 |
 | `mcp-server` | MCP Tool Provider、Milvus 向量记忆/商城检索等扩展 | 后续 AI/MCP 方向 |
-| `product/order/live/chat/admin` | 商城、订单、直播、聊天、后台管理 | 存量/扩展域，不作为主线 |
+
+> 重构时已主动移除与短视频主线无依赖的商城、订单、直播、聊天和后台管理模块，并清理 Gateway 路由与本地 Nacos 配置。这样仓库边界与简历叙事一致：保留下来的代码都能对应可靠发布、内容消费或受控 AI 能力。
 
 服务内部大多按 `controller -> service -> mapper` 分层；跨服务通过 `*-feign` 和 `*-pojo` 共享明确 DTO，公开接口与 `/private` 内部接口分开。
 

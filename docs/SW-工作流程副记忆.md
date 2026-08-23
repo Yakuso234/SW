@@ -15,7 +15,7 @@
 - 求职目标：中国大陆 2026 秋招，Java 后端和 Python Agent 应用开发。
 - 当前阶段：恢复项目记忆，建立可持续的面试准备资料体系。
 - 当前主线：可靠视频发布、内容消费互动、受控 AI 创作者助手和可观测性。
-- 非当前主线：`duoagent` 尚未完成重构；Product、Order、Live、Chat、Admin 和 MCP 扩展不作为当前核心面试闭环。
+- 非当前主线：`duoagent` 尚未完成重构；MCP 扩展不作为当前核心面试闭环。商城、订单、直播、聊天和后台管理存量模块已从仓库主动移除。
 
 ## 3. 已完成并验证
 
@@ -181,6 +181,16 @@
 - 新发现的面试价值：写入面试问题第 61—63 题；特别区分短视频关注内容扇出和 Live RTMP 推流，且不把每日去重观看口径描述为生产级反刷量。
 - 当前风险/阻塞：本地统计表由幂等脚本初始化；生产应改用 Flyway/Liquibase 等版本化迁移。观看统计仍缺完播阈值、匿名用户策略、反作弊和离线数仓。Live RTMP、Product、Order、Chat、Admin 仍是存量/后续扩展，不纳入当前完成度。
 - 下一步：提交本轮代码和文档；日常使用由 IDEA 接管 Video 服务。现场演示先执行 `ensure-video-analytics-schema.ps1`，再运行 `verify-follow-feed-e2e.ps1`。
+
+### 2026-08-23：收敛仓库到短视频主线
+
+- 状态：`已完成并验证`
+- 本次目标：移除无法服务当前简历主线、且没有被核心模块依赖的存量模块，降低仓库认知负担。
+- 完成内容：删除 `product`、`order`、`live`、`chat`、`admin` 五个目录；根 Maven 聚合移除五个 module；删除四份实际存在的对应 Nacos 本地配置；Gateway 移除五条遗留路由及 `/admin/**` 白名单；MinIO 初始化收敛为 `video`、`user` 两个 Bucket。删除前检索确认主线 POM、Compose、`SW-web` 无模块引用，但发现本地 `gateway-dev.yaml` 尚保留路由，已同步清理。
+- 验证证据：Java 21 下根聚合 `mvn -DskipTests compile` 通过；`SW-web npm run build` 通过；Nacos `dev` 命名空间已重新导入 6 份核心配置，Gateway 远端内容与本地精简配置一致，4 个遗留 dataId 已删除；运行中 Gateway 对 `/product`、`/order`、`/live`、`/chat`、`/admin` 五条路径均返回 HTTP 404。
+- 新发现的面试价值：仓库收敛不是“删代码凑精简”，而是先做依赖/路由/部署面核验，再删除孤立域，保证运行边界和简历叙事一致。
+- 当前风险/阻塞：`.file/sql/yh.sql` 中的历史表与本机已有 MinIO Bucket 暂不删除，避免把模块收敛扩大为数据销毁；后续若需要重建空开发库，再单独设计版本化迁移。
+- 下一步：提交推送；后续若清理历史 SQL 表或已有对象存储数据，必须单独设计迁移与备份方案。
 
 ## 8. 更新模板
 

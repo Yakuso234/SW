@@ -56,7 +56,7 @@ flowchart LR
 
 尚未作为完成能力对外描述：
 
-- Product、Order、Live、Chat、Admin 等存量模块不属于当前简历主线。
+- 商城、订单、直播、聊天和后台管理等存量域已在本次重构中主动移除；仓库只保留可演示、可验证的短视频主链路与 AI 扩展。
 - 不把该固定环境基线表述为生产 TPS、并发上限或通用性能结论。
 
 ## 前端演示范围
@@ -157,7 +157,7 @@ SW 使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷不�
 .\scripts\start-sw-infra.ps1 -Observability
 ```
 
-脚本还会幂等创建 `video`、`user`、`product`、`live`、`chat` 五个私有 MinIO Bucket。对象不会开放匿名读取：上传使用预签名 PUT，Feed 播放使用后端生成的短期预签名 GET URL。
+脚本还会幂等创建 `video`、`user` 两个私有 MinIO Bucket。对象不会开放匿名读取：上传使用预签名 PUT，Feed 播放使用后端生成的短期预签名 GET URL。
 
 ### 导入 Nacos 配置
 

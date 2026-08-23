@@ -1,6 +1,6 @@
 param(
     [string]$ContainerName = 'sw-dev-minio-1',
-    [string[]]$Buckets = @('video', 'user', 'product', 'live', 'chat')
+    [string[]]$Buckets = @('video', 'user')
 )
 
 $ErrorActionPreference = 'Stop'
