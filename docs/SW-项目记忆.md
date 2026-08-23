@@ -39,6 +39,13 @@ SW 是一个面向创作者与内容消费者的短视频微服务平台。面�
 - 可观测性：TraceId 贯穿 HTTP、Feign、Outbox 和 MQ 消息；Actuator、Micrometer、Prometheus、Grafana 和核心回归测试已接入。
 - 本地证据：成功上传、无效媒体失败、处理回写不可用后的租约恢复、关注流死信恢复和互动验收均有脚本或测试支撑。
 
+### 当前本机运行约定
+
+- Java 服务统一由 IDEA 使用 JDK 21 启动，`dev` Profile 已写在各核心服务的 `application.yml`，不需要额外 Program arguments 或 VM options。
+- Docker Compose 只运行 `sw-dev` 项目隔离的中间件；IDEA 进程通过 Windows 用户环境变量读取 MySQL、Redis、RabbitMQ、MinIO、Nacos 和 XXL-Job 凭据及 `SW_*` 宿主机端口。
+- `.env` 只供 Docker Compose 读取，不能假设 IDEA 自动加载；修改 Windows 用户环境变量后必须完整退出并重启 IDEA。
+- `QWEN_API_KEY` 不写入仓库或 `.env`，只在 AI Run Configuration 或 Windows 用户环境中本地注入。
+
 ### 有代码但不作为当前主线
 
 - `product`、`order`、`live`、`chat`、`admin`：保留的电商、订单、直播、聊天和管理域，体现项目完整度，但不作为当前简历核心亮点。

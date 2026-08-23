@@ -128,6 +128,16 @@
 - 当前风险/阻塞：真实模型调用必须由用户在 IDEA 本地配置 Key 后进行；未登录时 Gateway 不会向 AI 服务注入用户身份。
 - 下一步：用户在 AI Run Configuration 配置 Key 后启动 User、Video、Video Processor、AI、Gateway，再从前端验证标题建议与本人视频状态查询；验证完成后补充真实 SSE 现场证据。
 
+### 2026-08-23：恢复 IDEA Java 服务运行环境变量
+
+- 状态：`已完成并验证，待重启 IDEA 生效`
+- 本次目标：恢复重装后丢失的 Application 中间件凭据、固定端口和 Java/Maven/Node 用户环境。
+- 完成内容：从 Git 忽略的本机 `.env` 同步 MySQL、Redis、RabbitMQ、MinIO、Nacos、XXL-Job 变量；设置 `SW_NACOS_SERVER_ADDR=localhost:28848`、MySQL `13306`、Redis `16379`、RabbitMQ `25672`、MinIO `29000`；恢复 JDK 21、Maven、Node 用户 PATH；设置默认模型 `qwen-plus`。
+- 验证证据：在实际 Windows 用户上下文中逐项核验 23 个变量均已配置，检查过程只输出变量名和布尔状态、不输出敏感值；`QWEN_API_KEY` 明确保留为未配置，等待用户在 AI Run Configuration 本地填写。
+- 新发现的面试价值：沿用面试问题第 50、53 题——Compose `.env`、Windows 用户环境和 IDEA Run Configuration 是三个不同注入层；配置恢复必须验证实际宿主进程上下文，不能以文档记录或沙箱进程视图代替。
+- 当前风险/阻塞：已经打开的 IDEA 不会自动获得新变量，必须完整退出后重新打开；真实 AI 联调还缺本地 `QWEN_API_KEY`。
+- 下一步：重启 IDEA，确认 Project SDK/Maven Runner 为 JDK 21；各核心 Application 的 Program arguments/VM options 留空，启动后检查健康端点。
+
 ## 8. 更新模板
 
 ```text
