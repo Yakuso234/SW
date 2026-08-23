@@ -12,7 +12,7 @@ spring:
     nacos:
       username: ${NACOS_USERNAME:nacos}
       password: ${NACOS_PASSWORD:nacos}
-      server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+      server-addr: ${SW_NACOS_SERVER_ADDR:localhost:28848}
       config:
         namespace: dev
       discovery:

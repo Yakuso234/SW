@@ -118,6 +118,16 @@
 - 当前风险/阻塞：无；完整多服务真实联调仍是项目后续验证项。
 - 下一步：提交并推送 README 更新。
 
+### 2026-08-23：校准 AI 前后端联调配置
+
+- 状态：`配置与回归已验证，待真实 Key 联调`
+- 本次目标：让本机 Qwen Key、AI Service、Gateway 和 `SW-web` 的 SSE 链路使用一致配置。
+- 完成内容：调用百炼兼容接口的 AI/MCP 配置统一使用 `QWEN_API_KEY`；AI Nacos 默认地址改为 SW 隔离端口 `28848`；AI Redis 默认地址改为 SW 隔离端口 `16379`；README 和演示 Runbook 补充 IDEA 密钥配置、启动顺序、登录要求及 SSE/Tool Calling 验证步骤。
+- 验证证据：`sw-dev` 的 MySQL、Redis、RabbitMQ、MinIO、Nacos 已按独立 Compose 项目启动；修正后的全部 Nacos YAML 已重新导入 `dev` 命名空间；JDK 21 下 `mvn -pl ai -am -DskipTests compile` 成功；`CreatorAssistantServiceImplTest` 与 `VideoProcessingToolsTest` 共 7 个测试全部通过；`SW-web` 的 `npm run build` 成功。当前系统用户环境中未检测到 `QWEN_API_KEY`，不会读取或记录密钥内容。
+- 新发现的面试价值：文档、Nacos 占位符和 IDEA 环境变量若命名不一致，会出现“已配置但服务读不到”的隐蔽故障；项目隔离还必须覆盖宿主机 Java 进程的连接地址。已写入面试问题清单第 53 题。
+- 当前风险/阻塞：真实模型调用必须由用户在 IDEA 本地配置 Key 后进行；未登录时 Gateway 不会向 AI 服务注入用户身份。
+- 下一步：用户在 AI Run Configuration 配置 Key 后启动 User、Video、Video Processor、AI、Gateway，再从前端验证标题建议与本人视频状态查询；验证完成后补充真实 SSE 现场证据。
+
 ## 8. 更新模板
 
 ```text

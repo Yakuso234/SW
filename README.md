@@ -165,6 +165,16 @@ SW 使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷不�
 
 默认将 `.file/config` 中的配置导入 `dev` 命名空间。外部服务密钥均通过环境变量注入，不应提交个人密钥。
 
+### 配置 Qwen AI
+
+AI Service 通过 Spring AI 调用阿里云百炼的 OpenAI 兼容接口，默认模型为 `qwen-plus`。请只在 IDEA 的 AI Service Run Configuration 中配置环境变量，不要把 Key 写入 `.env`、YAML、前端代码或 Git：
+
+```text
+QWEN_API_KEY=你的百炼API-Key
+```
+
+如需切换兼容模型，可额外设置 `AI_CHAT_MODEL`。AI Service 默认连接 SW 专属的 Nacos `localhost:28848`、MySQL `localhost:13306` 和 Redis `localhost:16379`；如果修改了 `.env` 中的宿主机端口，请在 IDEA 中同步设置对应的 `SW_NACOS_SERVER_ADDR`、`SW_MYSQL_PORT`、`SW_REDIS_PORT`。`.env` 只会被 Docker Compose 读取，不会自动进入 IDEA 进程；配置或修改用户环境变量后需要重启 IDEA。
+
 ### 构建
 
 ```powershell
@@ -184,7 +194,8 @@ mvn -B -ntp "-Dsurefire.failIfNoSpecifiedTests=false" "-Dtest=InternalRouteBlock
 1. `com.jiake.jk.user.UserApplication`
 2. `com.jiake.jk.video.VideoApplication`
 3. `com.jiake.jk.videoprocessor.VideoProcessorApplication`
-4. `com.jiake.jk.gateway.GatewayApplication`
+4. `com.jiake.jk.ai.AIApplication`（需要 `QWEN_API_KEY`）
+5. `com.jiake.jk.gateway.GatewayApplication`
 
 ### 前端启动
 
@@ -199,6 +210,8 @@ npm run dev
 浏览器访问 `http://127.0.0.1:18888`。Vite 会把 `/user`、`/video` 和 `/ai` 请求代理到 Gateway `10086`；前端只负责展示和发起业务请求，大文件仍走后端返回的 MinIO 预签名 URL。
 
 如果只想检查页面视觉和交互，不启动 Java 服务也可以访问；此时 Feed 会进入明确标注的 Demo Data 模式。要演示真实链路，先启动 User、Video、Video Processor、Gateway，AI 页面再额外启动 AI Service。
+
+AI 前后端联调需要先在前端完成注册或登录，因为 Gateway 会从 JWT 提取用户 ID，AI 工具再用该身份限制视频查询范围。登录后进入 `AI // OPS ASSISTANT`，可先发送“给我 3 个短视频标题建议”验证基础 SSE 流式响应；再携带本人真实 `videoId` 询问处理进度或失败原因，验证 AI -> Video 私有接口的只读 Tool Calling。浏览器请求路径为 `POST /ai/api/creator-assistant/stream`，响应事件依次包含 `meta`、多个 `delta`，最后为 `done`；失败时返回 `error` 事件。
 
 真实视频异步链路验收（本地开发环境）：先启动上述服务与 Docker 基础中间件，再执行：
 

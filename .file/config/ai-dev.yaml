@@ -11,12 +11,12 @@ spring:
       max-idle-time: 30000
   data:
     redis:
-      host: ${AI_REDIS_HOST:localhost}
-      port: ${AI_REDIS_PORT:6379}
+      host: ${SW_REDIS_HOST:localhost}
+      port: ${SW_REDIS_PORT:16379}
       password: ${REDIS_PASSWORD}
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${QWEN_API_KEY}
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       chat:
         options:

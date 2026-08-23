@@ -19,7 +19,7 @@ docker compose --project-name sw-dev --profile observability up -d prometheus gr
 
 SW 中间件使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷与其他项目隔离；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`。
 
-在 IDEA 依次启动：User `10088`、Video `10091`、Video Processor `10092`、Gateway `10086`。AI `10094` 仅在已配置本地 `QWEN_API_KEY` 时启动。
+在 IDEA 依次启动：User `10088`、Video `10091`、Video Processor `10092`、AI `10094`、Gateway `10086`。AI 仅在其 Run Configuration 已配置本地 `QWEN_API_KEY` 时启动；Key 使用阿里云百炼 API Key，不写入配置文件。AI 默认连接 SW 项目隔离端口 Nacos `28848`、MySQL `13306`、Redis `16379`。
 
 前端启动：
 
@@ -30,6 +30,8 @@ npm run dev
 ```
 
 访问 `http://127.0.0.1:18888`，演示公开 Feed、互动、可靠投稿工作台和 AI 创作者助手。
+
+AI 联调时先注册或登录，再进入 `AI // OPS ASSISTANT`：先询问标题建议验证 SSE；再使用当前账号名下的真实 `videoId` 询问处理状态或失败原因，验证权限受控的只读工具调用。未登录请求不会获得用户身份，不能作为 AI 链路成功证据。
 
 核验重点：
 
@@ -46,7 +48,7 @@ Prometheus Targets 中 Gateway、Video、Video Processor 应为 `UP`；启动 AI
 
 ## 2. 成功上传：异步处理主链路
 
-可选页面演示：在 `C:\Users\52373\Desktop\SW-web` 启动 Vite，注册/登录后从发布页上传一段短 MP4，再在作品工作台观察状态变为已发布。
+可选页面演示：在仓库内的 `SW-web` 启动 Vite，注册/登录后从发布页上传一段短 MP4，再在作品工作台观察状态变为已发布。
 
 也可用可复现脚本验证：
 
@@ -58,9 +60,9 @@ Prometheus Targets 中 Gateway、Video、Video Processor 应为 `UP`；启动 AI
 
 ## 2.5 内容消费：刷流、互动与关注
 
-打开 `http://127.0.0.1:18889/`，注册临时本地账号后演示：
+打开 `http://127.0.0.1:18888/`，注册临时本地账号后演示：
 
-1. 在“发现”页查看公开时间 Feed，点击“加载更多”验证游标分页。
+1. 打开 `http://127.0.0.1:18888/`，在“发现”页查看公开时间 Feed，点击“加载更多”验证游标分页。
 2. 对一条公开视频执行点赞、收藏和评论；评论提交后提示“互动计数会异步聚合”，刷新后以服务端计数为准。
 3. 关注创作者并切换“关注”页；新发布视频会由发布事件写入关注者 Inbox，再以游标读取关注 Feed。
 
