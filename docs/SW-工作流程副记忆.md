@@ -140,13 +140,15 @@
 
 ### 2026-08-23：排查 Video Redis 主机解析失败与本地 Key 暴露
 
-- 状态：`Redis 根因已确认，等待用户重启 IDEA；旧 Key 必须轮换`
+- 状态：`Redis 配置与 Nacos 远端已验证，待 Application 启动验证；旧 Key 必须轮换`
 - 本次目标：定位 `Failed to resolve 'redis'`，同时处理诊断输出意外暴露本地 AI Key 的安全事件。
-- 完成内容：确认 Windows 用户变量为 `SW_REDIS_HOST=localhost`、`SW_REDIS_PORT=16379`；确认 Nacos `common-dev.yaml` 仍为 `${SW_REDIS_HOST:localhost}` / `${SW_REDIS_PORT:16379}`；确认 Video Run Configuration 未加载 `.env`；确认 IDEA 进程启动早于用户变量恢复，仍持有旧环境快照。
-- 验证证据：IDEA 进程启动时间为 17:58:55；实际用户变量和 Nacos 表达式均正确；`.idea/workspace.xml` 被 `.gitignore` 排除且未被 Git 跟踪。
-- 新发现的面试价值：写入面试问题第 54 题。Git 忽略不等于运行时秘密不会进入本地配置、日志或诊断输出；泄露后必须撤销轮换，不能只删除文件。
+- 完成内容：确认 Windows 用户变量为 `SW_REDIS_HOST=localhost`、`SW_REDIS_PORT=16379`；确认 Nacos `common-dev.yaml` 正确；继续沿 `RedissonConfig` 定位到 `video-dev.yaml` 的独立 `redisson.address` 仍硬编码 `redis://redis:6379`，已将 Video/Product/Live 的 Redisson 地址统一改为 `SW_REDIS_HOST/SW_REDIS_PORT` 占位符。
+- 验证证据：完整异常底层为 Redisson `UnknownHostException: redis`；实际用户变量和 Spring Data Redis 表达式均正确；代码检索确认 `RedissonConfig` 只读取 `redisson.address`；重新导入后 Nacos 远端 `video-dev.yaml` 已核验为 `redis://${SW_REDIS_HOST:localhost}:${SW_REDIS_PORT:16379}`；`.idea/workspace.xml` 被 `.gitignore` 排除且未被 Git 跟踪。
+- 新发现的面试价值：写入面试问题第 54、55 题。Git 忽略不等于运行时秘密不会进入诊断输出；同一中间件存在多个客户端时必须核对失败 Bean 的实际配置前缀。
 - 当前风险/阻塞：原 Qwen Key 已出现在诊断输出中，必须在百炼控制台立即撤销并生成新 Key；当前 IDEA 需完整退出并重新打开后再启动服务。
-- 下一步：用户轮换 Key、重启 IDEA，先重启 Video 验证 Redis，再在 AI Run Configuration 中写入新 Key并验证 AI SSE。
+- 下一步：用户轮换 Key 后重新启动 Video 验证 Redisson，再在 AI Run Configuration 中写入新 Key 并验证 AI SSE。
+
+- 补充修复：Nacos 导入脚本原先丢弃发布返回值并立即打印成功，已增加发布结果检查以及远端内容重试比对；本轮 10 份 YAML 均显示 `Imported and verified`。
 
 ## 8. 更新模板
 

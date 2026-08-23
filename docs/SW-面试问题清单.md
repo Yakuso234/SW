@@ -234,6 +234,10 @@ Compose 使用独立的 `sw-dev` project name，容器、网络和数据卷由 C
 
 Git 忽略只能防止文件进入版本库，不能防止密钥出现在本地 `workspace.xml`、终端输出、截图、录屏或诊断日志中。IDEA Run Configuration 的环境变量可能以明文写入本地工作区文件，因此排障脚本只能输出变量名和是否存在，不能直接打印配置文件或变量值；一旦密钥进入聊天或日志，应立即在供应商控制台撤销并轮换，而不是只删除本地文本。更稳妥的长期方案是使用系统密钥存储或专用 Secret Manager，并让应用在运行时按权限读取。
 
+### 55. 为什么 Spring Redis 已配置 localhost，Redisson 仍然尝试解析 redis
+
+项目同时使用 Spring Data Redis 和 Redisson，它们读取的是两套配置键：`spring.data.redis.*` 与 `redisson.address`。只修正前者并不能改变 Redisson；存量 Nacos 配置中的 `redis://redis:6379` 是 Compose 容器网络地址，IDEA 宿主机无法解析。修复时必须沿 Bean 创建异常追到 `RedissonConfig` 的实际绑定属性，再把 Redisson 地址也统一为 `redis://${SW_REDIS_HOST:localhost}:${SW_REDIS_PORT:16379}`。这说明排障不能看到“Redis 配置正确”就停止，还要确认失败组件究竟消费了哪组配置。
+
 ## 九、最后要背熟的五句话
 
 1. 我把视频业务状态、处理任务状态和消息投递状态拆开，分别表达三类事实。

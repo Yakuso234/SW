@@ -18,12 +18,29 @@ for ($attempt = 1; $attempt -le 30; $attempt++) {
 }
 
 Get-ChildItem -LiteralPath $configDirectory -Filter '*.yaml' | ForEach-Object {
+    $localContent = [System.IO.File]::ReadAllText($_.FullName)
     $body = @{
         dataId  = $_.Name
         group   = 'DEFAULT_GROUP'
         type    = 'yaml'
-        content = [System.IO.File]::ReadAllText($_.FullName)
+        content = $localContent
     }
-    Invoke-RestMethod -Method Post -Uri "$NacosUrl/nacos/v1/cs/configs?tenant=$NamespaceId" -ContentType 'application/x-www-form-urlencoded' -Body $body | Out-Null
-    Write-Host "Imported $($_.Name)"
+    $published = Invoke-RestMethod -Method Post -Uri "$NacosUrl/nacos/v1/cs/configs?tenant=$NamespaceId" -ContentType 'application/x-www-form-urlencoded' -Body $body
+    if ($published -ne $true -and "$published" -ne 'true') {
+        throw "Nacos rejected $($_.Name): $published"
+    }
+
+    $verified = $false
+    for ($attempt = 1; $attempt -le 10; $attempt++) {
+        $remoteContent = (Invoke-WebRequest -UseBasicParsing -Uri "$NacosUrl/nacos/v1/cs/configs?dataId=$($_.Name)&group=DEFAULT_GROUP&tenant=$NamespaceId" -TimeoutSec 5).Content
+        if ($remoteContent -eq $localContent) {
+            $verified = $true
+            break
+        }
+        Start-Sleep -Milliseconds 300
+    }
+    if (-not $verified) {
+        throw "Nacos content verification failed for $($_.Name)"
+    }
+    Write-Host "Imported and verified $($_.Name)"
 }

@@ -17,7 +17,7 @@ aws:
   bucket: product
 
 redisson:
-  address: redis://redis:6379
+  address: redis://${SW_REDIS_HOST:localhost}:${SW_REDIS_PORT:16379}
   password: ${REDIS_PASSWORD}
   connectionPoolSize: 6
   connectionMinimumIdleSize: 2
