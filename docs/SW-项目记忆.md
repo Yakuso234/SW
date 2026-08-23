@@ -45,6 +45,7 @@ SW 是一个面向创作者与内容消费者的短视频微服务平台。面�
 - Docker Compose 只运行 `sw-dev` 项目隔离的中间件；IDEA 进程通过 Windows 用户环境变量读取 MySQL、Redis、RabbitMQ、MinIO、Nacos 和 XXL-Job 凭据及 `SW_*` 宿主机端口。
 - `.env` 只供 Docker Compose 读取，不能假设 IDEA 自动加载；修改 Windows 用户环境变量后必须完整退出并重启 IDEA。
 - `QWEN_API_KEY` 不写入仓库或 `.env`，只在 AI Run Configuration 或 Windows 用户环境中本地注入。
+- `SW-web` 的 Feed 已改为竖向沉浸式播放器并支持真实 MinIO URL、公开/关注切换、游标加载、搜索、点赞、收藏和评论；AI 页面显式展示标题、简介/标签、选题、发布节奏和两类只读工具。视觉为原创 2077 式 HUD，不使用官方素材。
 
 ### 有代码但不作为当前主线
 

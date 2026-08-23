@@ -150,6 +150,17 @@
 
 - 补充修复：Nacos 导入脚本原先丢弃发布返回值并立即打印成功，已增加发布结果检查以及远端内容重试比对；本轮 10 份 YAML 均显示 `Imported and verified`。
 
+### 2026-08-23：强化 2077 式前端并恢复真实刷视频条件
+
+- 状态：`前端已完成并验证；真实 Feed 数据待重启 Processor 后生成`
+- 本次目标：增强 2077 式视觉，显式展示已有业务能力，并定位 Video 已启动但 Public Feed 为空的问题。
+- 完成内容：Feed 改为竖向沉浸式播放器，支持真实 MinIO URL、公开/关注切换、游标加载、搜索、点赞、收藏和评论；空数据与后端不可达分开表达，并提供明确标注的视觉 Demo；AI 增加标题、简介/标签、选题、发布节奏、处理进度和失败诊断六类快捷入口；视觉改为原创警示黄黑、神经青、故障红、巨大 77 编码和切角 HUD。修正成功/失败/性能 E2E 脚本的 `sw-dev-mysql-1` 容器名及 `25672/29000` 隔离端口。
+- 验证证据：Gateway/Video Public Feed 均返回 HTTP 200 和空 `items`；只读查询确认本机 `video` 表没有记录；前端两次 `npm run build` 成功；浏览器验证 Feed 空状态、Demo 竖向信号流、Creator Ops 和 AI 六类入口，控制台无 warning/error。
+- 新发现的面试价值：写入面试问题第 56 题。服务健康不等于业务数据就绪；Feed 的 `PUBLISHED + published_at` 条件必须通过完整异步链路产生。
+- 环境恢复：本机已安装 FFmpeg 9.0，并持久化 `SW_VIDEO_PROCESSING_FFMPEG_COMMAND`；当前运行中的 IDEA/Processor 尚未继承新变量，需要完整重启 IDEA。
+- 当前风险/阻塞：重启 Processor 前不要运行成功 E2E，否则任务会因找不到 FFmpeg 进入失败状态；真实 Feed 仍无本地公开视频。
+- 下一步：重启 IDEA 后运行 `scripts/verify-video-e2e.ps1` 生成真实 `PUBLISHED` 视频，再验证前端 `<video>` 播放、评论和互动。
+
 ## 8. 更新模板
 
 ```text

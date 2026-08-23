@@ -44,7 +44,7 @@ flowchart LR
 - 视频可靠异步链路已具备完整代码、测试和本地 E2E 脚本：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
 - AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；调用链支持 TraceId 追踪到 Video Service。
 - 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。
-- 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，收敛为公开 Feed、互动、可靠投稿工作台、处理状态/失败诊断和 AI 助手；已通过生产构建、浏览器页面和控制台检查，视觉采用原创赛博朋克 HUD 风格。
+- 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，收敛为竖向公开视频/关注 Feed、播放、搜索、互动、可靠投稿工作台、处理状态/失败诊断和 AI 助手；已通过生产构建、浏览器页面和控制台检查，视觉采用原创的 2077 式赛博朋克 HUD 风格，不包含官方 Logo、角色原画或游戏素材。
 - 重装系统后已重新验证 Docker 中间件、Nacos 配置导入、Gateway Java 21 启动和前端构建；完整多服务真实 E2E 需要启动 User、Video、Video Processor、AI 后再复验。
 - 固定开发机曾完成 1 次预热和 5 次串行端到端样本，P50 为 3500 ms、P95 为 3506 ms；它仅是历史同机回归基线，非生产吞吐结论。
 
@@ -65,11 +65,11 @@ flowchart LR
 
 | 页面 | 可演示内容 |
 |---|---|
-| `SIGNAL // FEED` | 公开/关注 Feed、搜索、点赞、收藏、评论 |
+| `SIGNAL // FEED` | 竖向公开视频/关注 Feed、视频播放、游标加载、搜索、点赞、收藏、评论 |
 | `CREATOR // OPS` | 预签名直传、MinIO 上传、投稿提交、处理状态和失败列表 |
-| `AI // OPS ASSISTANT` | SSE 流式对话、处理状态查询、失败诊断和运营文案建议 |
+| `AI // OPS ASSISTANT` | SSE 流式对话、标题/简介/标签、选题、发布节奏、处理状态查询和失败诊断 |
 
-前端使用原创赛博朋克 HUD 视觉系统：黑底、青蓝/洋红霓虹、扫描线、网格、终端标签和切角面板。前端不可用后端服务时会明确显示 `DEMO DATA`，只用于页面走查；登录、互动、投稿和 AI 请求仍要求真实后端服务，避免把演示数据当成链路证据。
+前端使用原创 2077 式赛博朋克 HUD 视觉系统：警示黄黑、神经链路青、红色故障层、扫描线、网格、终端标签、巨大编码和切角面板。后端不可用或真实 Feed 暂无数据时，可以手动进入明确标注为 `DEMO DATA / VISUAL PREVIEW ONLY` 的页面走查；登录、互动、投稿、真实播放和 AI 请求仍要求真实后端服务，避免把演示数据当成链路证据。
 
 ## 重点改造
 
@@ -208,6 +208,8 @@ npm run dev
 ```
 
 浏览器访问 `http://127.0.0.1:18888`。Vite 会把 `/user`、`/video` 和 `/ai` 请求代理到 Gateway `10086`；前端只负责展示和发起业务请求，大文件仍走后端返回的 MinIO 预签名 URL。
+
+Public Feed 只返回 `status=PUBLISHED` 且存在 `published_at` 的视频。Video Service 健康但本地数据库没有已发布数据时，页面会显示 `NO PUBLISHED SIGNALS`；这不代表接口故障。需要启动 Video Processor 并通过 Creator Ops 或 E2E 脚本完成一次真实上传、转码和发布。IDEA 启动 Processor 的本机环境需要可用的 FFmpeg。
 
 如果只想检查页面视觉和交互，不启动 Java 服务也可以访问；此时 Feed 会进入明确标注的 Demo Data 模式。要演示真实链路，先启动 User、Video、Video Processor、Gateway，AI 页面再额外启动 AI Service。
 

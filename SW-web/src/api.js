@@ -33,7 +33,7 @@ export const register = (body) => request('/user/api/public/auth/register', { me
 export const getProfile = () => request('/user/api/me/profile/basic')
 export const getFeed = (cursor = '') => request(`/video/api/public/feed?pageSize=12${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
 export const getLegacyFeed = () => request('/video/api/public/list')
-export const getFollowFeed = () => request('/video/api/me/follow-feed?pageSize=12')
+export const getFollowFeed = (cursor = '') => request(`/video/api/me/follow-feed?pageSize=12${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)
 export const searchVideos = (keyword) => request(`/video/api/public/search?keyword=${encodeURIComponent(keyword)}`)
 export const likeVideo = (id, active) => request(`/video/api/me/interaction/like/${id}`, { method: active ? 'POST' : 'DELETE' })
 export const favoriteVideo = (id, active) => request(`/video/api/me/interaction/favorite/${id}`, { method: active ? 'POST' : 'DELETE' })

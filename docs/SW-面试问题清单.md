@@ -238,6 +238,10 @@ Git 忽略只能防止文件进入版本库，不能防止密钥出现在本地 
 
 项目同时使用 Spring Data Redis 和 Redisson，它们读取的是两套配置键：`spring.data.redis.*` 与 `redisson.address`。只修正前者并不能改变 Redisson；存量 Nacos 配置中的 `redis://redis:6379` 是 Compose 容器网络地址，IDEA 宿主机无法解析。修复时必须沿 Bean 创建异常追到 `RedissonConfig` 的实际绑定属性，再把 Redisson 地址也统一为 `redis://${SW_REDIS_HOST:localhost}:${SW_REDIS_PORT:16379}`。这说明排障不能看到“Redis 配置正确”就停止，还要确认失败组件究竟消费了哪组配置。
 
+### 56. Video Service 已健康且 Feed 接口返回 200，为什么前端仍然刷不到视频
+
+服务可用性、接口成功和业务数据就绪是三件事。本次现场检查确认 Gateway 与 Video 的 `/public/feed` 均返回 200，但本机 `video` 表为空；Feed SQL 又明确过滤 `status=5(PUBLISHED)` 和 `published_at IS NOT NULL`，因此返回空 `items` 是正确业务结果。要产生真实 Feed 数据，必须完成预签名上传、MinIO 落盘、Outbox/MQ、Processor/FFmpeg 转码和发布回写；仅启动 Video Service 不会自动生成视频。前端应把“后端不可达”和“后端可达但没有已发布数据”做成不同空状态，Demo 数据也必须明确标注，不能掩盖数据链路尚未完成。
+
 ## 九、最后要背熟的五句话
 
 1. 我把视频业务状态、处理任务状态和消息投递状态拆开，分别表达三类事实。

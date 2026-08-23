@@ -3,7 +3,7 @@ param(
     [int]$MeasuredSamples = 5,
     [int]$TimeoutSeconds = 120,
     [string]$VideoServiceUrl = 'http://localhost:10091/video/api',
-    [string]$MysqlContainer = 'sw-mysql-1',
+    [string]$MysqlContainer = 'sw-dev-mysql-1',
     [string]$MysqlPassword,
     [string]$FfmpegPath
 )

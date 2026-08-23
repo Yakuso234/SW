@@ -10,6 +10,8 @@ const view = ref('feed')
 const feedMode = ref('public')
 const search = ref('')
 const videos = ref([])
+const feedCursor = ref('')
+const feedHasMore = ref(false)
 const selectedVideo = ref(null)
 const comments = ref([])
 const commentText = ref('')
@@ -42,30 +44,48 @@ const demoVideos = [
 
 const isLoggedIn = computed(() => Boolean(token.value))
 const pageTitle = computed(() => view.value === 'feed' ? 'SIGNAL // FEED' : view.value === 'creator' ? 'CREATOR // OPS' : 'AI // OPS ASSISTANT')
-const currentSubtitle = computed(() => view.value === 'feed' ? '可靠发布后的内容消费与互动现场' : view.value === 'creator' ? '上传、处理、失败诊断与状态追踪' : '权限受控的只读创作者助手')
+const currentSubtitle = computed(() => view.value === 'feed' ? '可靠发布后的内容消费与互动现场' : view.value === 'creator' ? '上传、处理、失败诊断与状态追踪' : '内容创作建议与权限受控的只读业务工具')
 const titleHtml = computed(() => view.value === 'ai' ? 'ASK THE <em>OPS</em>' : view.value === 'creator' ? 'PUBLISH WITH <em>PROOF</em>' : 'ENTER THE <em>FEED</em>')
 
 function showNotice(message, type = 'ok') { notice.value = message; noticeType.value = type; window.clearTimeout(showNotice.timer); showNotice.timer = window.setTimeout(() => { notice.value = '' }, 4200) }
 function unwrapList(value) { if (Array.isArray(value)) return value; return value?.items || value?.records || [] }
 function mediaUrl(value) { if (!value) return ''; if (/^https?:\/\//.test(value)) return value; return `${import.meta.env.VITE_MEDIA_BASE_URL || 'http://localhost:29000'}/video/${value}` }
-function normalizeVideo(item, index = 0) { return { ...item, id: String(item.id), palette: item.palette || demoVideos[index % demoVideos.length].palette } }
+function normalizeVideo(item, index = 0) {
+  return {
+    ...item,
+    id: String(item.id),
+    likes: Number(item.likes || 0),
+    comments: Number(item.comments || 0),
+    favorites: Number(item.favorites || 0),
+    palette: item.palette || demoVideos[index % demoVideos.length].palette
+  }
+}
 
-async function loadFeed() {
+async function loadFeed(reset = true) {
   loading.value = true; demoMode.value = false
   try {
-    const result = feedMode.value === 'following' ? await getFollowFeed() : await getFeed()
-    videos.value = unwrapList(result).map(normalizeVideo)
-    if (!videos.value.length && feedMode.value === 'public') {
-      videos.value = (await getLegacyFeed()).map(normalizeVideo)
+    if (reset) { feedCursor.value = ''; feedHasMore.value = false }
+    const result = feedMode.value === 'following' ? await getFollowFeed(feedCursor.value) : await getFeed(feedCursor.value)
+    let nextItems = unwrapList(result).map(normalizeVideo)
+    feedCursor.value = result?.nextCursor || ''
+    feedHasMore.value = Boolean(result?.hasMore)
+    if (!nextItems.length && reset && feedMode.value === 'public') {
+      nextItems = (await getLegacyFeed()).map(normalizeVideo)
     }
+    videos.value = reset ? nextItems : [...videos.value, ...nextItems]
   } catch (error) {
     demoMode.value = true; videos.value = demoVideos.map((item) => ({ ...item }))
+    feedHasMore.value = false
     showNotice(`后端暂不可用，已进入演示数据模式：${error.message}`, 'error')
   } finally { loading.value = false }
 }
 
+function switchFeedMode(mode) { feedMode.value = mode; loadFeed(true) }
+function loadMoreFeed() { if (!loading.value && feedHasMore.value) loadFeed(false) }
+function loadDemoFeed() { demoMode.value = true; feedHasMore.value = false; videos.value = demoVideos.map((item) => ({ ...item })); showNotice('已加载明确标注的视觉演示信号；真实 Feed 仍需 PUBLISHED 数据') }
+
 async function doSearch() {
-  if (!search.value.trim()) return loadFeed()
+  if (!search.value.trim()) return loadFeed(true)
   loading.value = true
   try { videos.value = unwrapList(await searchVideos(search.value.trim())).map(normalizeVideo); demoMode.value = false }
   catch (error) { showNotice(error.message, 'error') }
@@ -118,6 +138,7 @@ async function askAssistant() {
 
 function setView(next) { view.value = next; if (next === 'feed') loadFeed(); if (next === 'creator') loadCreatorData() }
 function formatCount(value) { const n = Number(value || 0); return n > 9999 ? `${(n / 10000).toFixed(1)}W` : n }
+function scrollToFeed() { document.querySelector('.signal-deck, .feed-empty')?.scrollIntoView({ behavior: 'smooth' }) }
 
 onMounted(async () => { await loadProfile(); await loadFeed() })
 </script>
@@ -148,18 +169,38 @@ onMounted(async () => { await loadProfile(); await loadFeed() })
       <div v-if="notice" class="status-strip" :class="noticeType">{{ notice }}</div>
 
       <template v-if="view === 'feed'">
-        <section class="hero">
-          <div><div class="eyebrow">CREATOR RELIABILITY / 2026</div><h2 style="font-size: 30px; margin: 18px 0 0;">看见内容，也看见内容背后的系统。</h2><p class="lede">公开 Feed、关注 Feed、点赞、收藏、评论。每次互动都经过 Gateway 身份校验，消费侧状态可追踪。</p></div>
-          <div class="hero-art"><div class="hero-grid"></div><div class="hero-card"><h3>TRACE YOUR STORY</h3><p>X-TRACE-ID // OUTBOX // INBOX // RECOVERY</p></div></div>
+        <section class="hero cp-hero">
+          <div class="hero-copy">
+            <div class="danger-tag">WARNING // HIGH-BANDWIDTH MEMORY STREAM</div>
+            <div class="eyebrow">NIGHT DISTRICT / NEURAL FEED / 2077 MODE</div>
+            <h2>把城市的噪声<br><span>烧进信号里。</span></h2>
+            <p class="lede">不只是上传和 AI。这里包含公开刷流、关注流、搜索、播放、点赞、收藏与评论；创作者端负责投稿和状态追踪，AI 负责标题建议与失败诊断。</p>
+            <div class="hero-cta"><button class="btn yellow" @click="scrollToFeed">JACK INTO FEED ↓</button><button class="btn ghost" @click="setView('creator')">OPEN CREATOR OPS</button></div>
+          </div>
+          <div class="hero-art cp-art"><div class="hero-grid"></div><div class="mega-code">77</div><div class="hero-card"><small>SW // EDGE SIGNAL</small><h3>WAKE THE FEED</h3><p>GATEWAY · OUTBOX · RABBITMQ · FFMPEG</p></div><div class="chrome-meter"><span>CHROME</span><b>86%</b></div></div>
         </section>
-        <div class="section-head"><div><h2>LIVE SIGNALS</h2><p>{{ demoMode ? 'DEMO DATA / 后端服务未连接' : 'REAL FEED / Gateway connected' }}</p></div><div class="filter-tabs"><button :class="{ active: feedMode === 'public' }" @click="feedMode = 'public'; loadFeed()">PUBLIC</button><button :class="{ active: feedMode === 'following' }" @click="requireLogin() && (feedMode = 'following', loadFeed())">FOLLOWING</button></div></div>
+        <div class="capability-strip"><span>PUBLIC FEED</span><span>FOLLOWING</span><span>VIDEO PLAYBACK</span><span>SEARCH</span><span>LIKE</span><span>FAVORITE</span><span>COMMENTS</span></div>
+        <div class="section-head"><div><div class="eyebrow">BRAINDANCE CHANNEL / CONSUMER SIDE</div><h2>LIVE SIGNALS</h2><p>{{ demoMode ? 'DEMO DATA / VISUAL PREVIEW ONLY' : 'REAL FEED / Gateway connected' }}</p></div><div class="filter-tabs"><button :class="{ active: feedMode === 'public' }" @click="switchFeedMode('public')">PUBLIC</button><button :class="{ active: feedMode === 'following' }" @click="requireLogin() && switchFeedMode('following')">FOLLOWING</button></div></div>
         <div v-if="loading" class="empty">LOADING SIGNAL STREAM...</div>
-        <div v-else-if="videos.length" class="video-grid">
-          <article v-for="video in videos" :key="video.id" class="video-card" @click="openVideo(video)">
-            <div class="poster" :style="{ '--a': video.palette?.[0] || '#122c54', '--b': video.palette?.[1] || '#ff267f' }"><span>VIDEO // {{ String(video.id).padStart(4, '0') }}</span></div>
-            <div class="card-body"><span class="card-title">{{ video.description || '未命名信号' }}</span><div class="meta"><span><b>@{{ video.creatorName || 'UNKNOWN' }}</b></span><span>{{ formatCount(video.likes) }} likes</span></div><div class="card-actions"><button class="icon-btn" :class="{ on: video.isLike }" @click.stop="toggleLike(video)">♥ {{ formatCount(video.likes) }}</button><button class="icon-btn" :class="{ on: video.isFavorite }" @click.stop="toggleFavorite(video)">◆ {{ formatCount(video.favorites) }}</button></div></div>
-          </article>
-        </div><div v-else class="empty">NO SIGNALS FOUND // 尝试启动 Video Service</div>
+        <div v-else-if="videos.length" class="signal-deck">
+          <aside class="feed-rail"><div class="rail-line"></div><div class="rail-item active"><b>01</b><span>DISCOVER<br>公开刷流</span></div><div class="rail-item"><b>02</b><span>FOLLOW<br>关注订阅</span></div><div class="rail-item"><b>03</b><span>REACT<br>赞藏评论</span></div><div class="rail-status"><i></i> CHANNEL LIVE</div></aside>
+          <div class="video-stream">
+            <article v-for="(video, index) in videos" :key="video.id" class="signal-card">
+              <div class="media-stage" :style="{ '--a': video.palette?.[0] || '#122c54', '--b': video.palette?.[1] || '#ff267f' }">
+                <video v-if="video.url" :src="mediaUrl(video.url)" controls loop muted playsinline preload="metadata" @click.stop></video>
+                <div v-else class="poster"><span>NEURAL CLIP // {{ String(video.id).padStart(4, '0') }}</span></div>
+                <div class="media-hud"><span>REC ● {{ String(index + 1).padStart(2, '0') }}</span><span>{{ demoMode ? 'SIMULATION' : 'LIVE DATA' }}</span></div>
+                <div class="edge-mark">SW<br><b>77</b></div>
+              </div>
+              <div class="signal-copy">
+                <div><div class="eyebrow">SIGNAL ID // {{ video.id }}</div><h3>{{ video.description || '未命名信号' }}</h3><p>@{{ video.creatorName || 'UNKNOWN CREATOR' }} · {{ demoMode ? '视觉演示信号，不代表后端数据' : '经 Gateway 分发的公开视频' }}</p></div>
+                <div class="signal-actions"><button class="action-key" :class="{ on: video.isLike }" @click="toggleLike(video)"><b>♥</b><span>{{ formatCount(video.likes) }}<small>LIKE</small></span></button><button class="action-key" :class="{ on: video.isFavorite }" @click="toggleFavorite(video)"><b>◆</b><span>{{ formatCount(video.favorites) }}<small>SAVE</small></span></button><button class="action-key" @click="openVideo(video)"><b>▤</b><span>{{ formatCount(video.comments) }}<small>COMMENT</small></span></button></div>
+              </div>
+            </article>
+            <button v-if="feedHasMore" class="btn yellow load-more" @click="loadMoreFeed">LOAD NEXT SIGNALS ↓</button>
+          </div>
+        </div>
+        <div v-else class="empty feed-empty"><b>NO PUBLISHED SIGNALS</b><span>Video Service 已连接，但数据库目前没有 `PUBLISHED` 视频。先从 Creator Ops 上传，并启动 Video Processor 完成转码发布。</span><div class="hero-cta"><button class="btn yellow" @click="setView('creator')">GO TO UPLOAD PIPELINE →</button><button class="btn ghost" @click="loadDemoFeed">PREVIEW DEMO SIGNALS</button></div></div>
       </template>
 
       <template v-else-if="view === 'creator'">
@@ -167,7 +208,7 @@ onMounted(async () => { await loadProfile(); await loadFeed() })
       </template>
 
       <template v-else>
-        <section class="ai-layout"><aside class="ai-sidebar"><h3>CREATOR ASSISTANT</h3><div class="eyebrow">READ-ONLY TOOLS</div><div class="ai-note">AI 只读取服务端事实：处理状态与失败摘要。它不会发布视频、修改业务数据或绕过 creatorId 权限边界。</div><h4>TRY ASKING</h4><button class="btn ghost small" style="width:100%; margin-bottom: 10px;" @click="aiInput = '帮我诊断最近一次视频处理失败'; askAssistant()">诊断处理失败</button><button class="btn ghost small" style="width:100%;" @click="aiInput = '帮我生成一条可靠发布主题的视频标题'; askAssistant()">生成标题建议</button></aside><div class="chat"><div class="chat-head"><b>OPS CHANNEL / TRACE-AWARE</b><span class="online">● {{ aiBusy ? 'STREAMING' : 'ONLINE' }}</span></div><div class="messages"><div v-for="(message, index) in aiMessages" :key="index" class="message" :class="{ user: message.role === 'user' }"><small>{{ message.role === 'user' ? 'YOU' : 'AI OPS' }}</small>{{ message.text || '...' }}</div></div><form class="chat-compose" @submit.prevent="askAssistant"><input v-model="aiInput" class="field" placeholder="输入创作者问题..." :disabled="aiBusy" /><button class="btn" :disabled="aiBusy">SEND</button></form></div></section>
+        <section class="ai-layout"><aside class="ai-sidebar"><h3>CREATOR ASSISTANT</h3><div class="eyebrow">CONTENT COPILOT + READ-ONLY TOOLS</div><div class="ai-note">AI 可以生成标题、简介、标签、选题与发布节奏；涉及业务事实时，只读取本人视频的处理状态与失败摘要。它不会发布视频、修改数据或绕过 creatorId 权限边界。</div><h4>TRY ASKING</h4><div class="ai-quick-grid"><button class="btn ghost small" @click="aiInput = '为可靠异步发布主题生成3个标题，并说明各自适合的受众'; askAssistant()">标题建议</button><button class="btn ghost small" @click="aiInput = '为短视频生成一份简介和5个标签，主题是可靠异步发布'; askAssistant()">简介与标签</button><button class="btn ghost small" @click="aiInput = '给我3个适合后端开发者账号的短视频选题'; askAssistant()">选题策划</button><button class="btn ghost small" @click="aiInput = '给我一周短视频发布节奏建议，并说明理由'; askAssistant()">发布节奏</button><button class="btn ghost small" @click="aiInput = '我想查询一个视频的处理进度，请告诉我需要提供什么'; askAssistant()">处理进度</button><button class="btn ghost small" @click="aiInput = '我想诊断视频处理失败，请告诉我需要提供什么'; askAssistant()">失败诊断</button></div></aside><div class="chat"><div class="chat-head"><b>OPS CHANNEL / TRACE-AWARE</b><span class="online">● {{ aiBusy ? 'STREAMING' : 'ONLINE' }}</span></div><div class="messages"><div v-for="(message, index) in aiMessages" :key="index" class="message" :class="{ user: message.role === 'user' }"><small>{{ message.role === 'user' ? 'YOU' : 'AI OPS' }}</small>{{ message.text || '...' }}</div></div><form class="chat-compose" @submit.prevent="askAssistant"><input v-model="aiInput" class="field" placeholder="输入创作者问题..." :disabled="aiBusy" /><button class="btn" :disabled="aiBusy">SEND</button></form></div></section>
       </template>
     </main>
 
