@@ -138,6 +138,16 @@
 - 当前风险/阻塞：已经打开的 IDEA 不会自动获得新变量，必须完整退出后重新打开；真实 AI 联调还缺本地 `QWEN_API_KEY`。
 - 下一步：重启 IDEA，确认 Project SDK/Maven Runner 为 JDK 21；各核心 Application 的 Program arguments/VM options 留空，启动后检查健康端点。
 
+### 2026-08-23：排查 Video Redis 主机解析失败与本地 Key 暴露
+
+- 状态：`Redis 根因已确认，等待用户重启 IDEA；旧 Key 必须轮换`
+- 本次目标：定位 `Failed to resolve 'redis'`，同时处理诊断输出意外暴露本地 AI Key 的安全事件。
+- 完成内容：确认 Windows 用户变量为 `SW_REDIS_HOST=localhost`、`SW_REDIS_PORT=16379`；确认 Nacos `common-dev.yaml` 仍为 `${SW_REDIS_HOST:localhost}` / `${SW_REDIS_PORT:16379}`；确认 Video Run Configuration 未加载 `.env`；确认 IDEA 进程启动早于用户变量恢复，仍持有旧环境快照。
+- 验证证据：IDEA 进程启动时间为 17:58:55；实际用户变量和 Nacos 表达式均正确；`.idea/workspace.xml` 被 `.gitignore` 排除且未被 Git 跟踪。
+- 新发现的面试价值：写入面试问题第 54 题。Git 忽略不等于运行时秘密不会进入本地配置、日志或诊断输出；泄露后必须撤销轮换，不能只删除文件。
+- 当前风险/阻塞：原 Qwen Key 已出现在诊断输出中，必须在百炼控制台立即撤销并生成新 Key；当前 IDEA 需完整退出并重新打开后再启动服务。
+- 下一步：用户轮换 Key、重启 IDEA，先重启 Video 验证 Redis，再在 AI Run Configuration 中写入新 Key并验证 AI SSE。
+
 ## 8. 更新模板
 
 ```text
