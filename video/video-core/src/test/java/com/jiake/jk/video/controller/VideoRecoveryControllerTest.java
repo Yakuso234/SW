@@ -2,6 +2,7 @@ package com.jiake.jk.video.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jiake.jk.common.exception.GlobalExceptionHandler;
+import com.jiake.jk.common.exception.YHClientException;
 import com.jiake.jk.video.controller._private.VideoPrivateController;
 import com.jiake.jk.video.pojo.response.VideoRecoveryOperationResponse;
 import com.jiake.jk.video.service.VideoProcessingTaskService;
@@ -18,7 +19,6 @@ import java.time.LocalDateTime;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -85,13 +85,16 @@ class VideoRecoveryControllerTest {
 
     @Test
     void missingRequiredHeaderShouldReturnBadRequest() throws Exception {
+        when(service.recoverExpiredProcessingTask(7003L, null, "trace-missing", "flowpilot"))
+                .thenThrow(new YHClientException("Idempotency-Key 不能为空"));
+
         mockMvc.perform(post("/private/processing/{videoId}/recover-expired", 7003L)
                         .header("X-Trace-Id", "trace-missing")
                         .header("X-FlowPilot-Service", "flowpilot"))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.msg").value("缺少请求头: Idempotency-Key"));
+                .andExpect(jsonPath("$.msg").value("Idempotency-Key 不能为空"));
 
-        verifyNoInteractions(service);
+        verify(service).recoverExpiredProcessingTask(7003L, null, "trace-missing", "flowpilot");
     }
 
     private VideoRecoveryOperationResponse response(boolean replayed) {

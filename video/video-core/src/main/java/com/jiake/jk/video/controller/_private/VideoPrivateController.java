@@ -82,9 +82,9 @@ public class VideoPrivateController {
     @org.springframework.web.bind.annotation.PostMapping("/processing/{videoId}/recover-expired")
     public Result<VideoRecoveryOperationResponse> recoverExpiredProcessingTask(
             @PathVariable Long videoId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestHeader("X-Trace-Id") String traceId,
-            @RequestHeader("X-FlowPilot-Service") String requestedBy) {
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
+            @RequestHeader(value = "X-FlowPilot-Service", required = false) String requestedBy) {
         return Result.success(videoProcessingTaskService.recoverExpiredProcessingTask(
                 videoId, idempotencyKey, traceId, requestedBy));
     }
@@ -92,9 +92,9 @@ public class VideoPrivateController {
     @GetMapping("/processing/{videoId}/recovery-status")
     public Result<VideoRecoveryOperationResponse> getRecoveryStatus(
             @PathVariable Long videoId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestHeader("X-Trace-Id") String traceId,
-            @RequestHeader("X-FlowPilot-Service") String requestedBy) {
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
+            @RequestHeader(value = "X-FlowPilot-Service", required = false) String requestedBy) {
         return Result.success(videoProcessingTaskService.getRecoveryStatus(
                 videoId, idempotencyKey, traceId, requestedBy));
     }
