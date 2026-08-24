@@ -9,9 +9,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -57,6 +59,17 @@ public class GlobalExceptionHandler {
         String errorMessage = String.join("，", errors);
 
         return Result.error(errorMessage);
+    }
+
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<Result<Void>> ex(MissingRequestHeaderException e) {
+        return ResponseEntity.badRequest().body(Result.error("缺少请求头: " + e.getHeaderName()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Result<Void>> ex(ResponseStatusException e) {
+        String message = e.getReason() == null ? "请求状态冲突" : e.getReason();
+        return ResponseEntity.status(e.getStatusCode()).body(Result.error(message));
     }
 
     @ExceptionHandler(FeignException.class)

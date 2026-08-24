@@ -276,9 +276,18 @@ DLQ 运维入口（仅服务内网调用，当前不经 Gateway 暴露）：
 ```text
 GET  /video/api/private/processing/operations/overview
 POST /video/api/private/processing/{videoId}/recover-expired
+GET  /video/api/private/processing/{videoId}/recovery-status
 ```
 
 概览接口返回主队列/DLQ 消息数、处理中任务数和失败任务数。人工恢复接口只接受“租约已过期且仍为 `PROCESSING`”的视频任务；它会创建新的 Outbox 补偿消息，不会直接重放 DLQ 中的旧消息。
+
+DG/FlowPilot 等受限编排器调用恢复接口时必须携带 `Idempotency-Key`、`X-Trace-Id`、`X-FlowPilot-Service: flowpilot`。首次请求在同一个 MySQL 事务中抢占幂等键、重置任务和视频、写恢复 Outbox，并持久化 `ACCEPTED/recoveryId/outboxId` 回执；相同 Key 重放稳定返回同一回执，不能再创建 Outbox。`GET recovery-status` 严格只读：不存在返回 404，Key 绑定其他 videoId 或服务身份返回 409。当前仍未启用服务 Token/mTLS，接口只能从受限内网直连，不可作为公网接口。
+
+可在 Video Service 以关闭自动扫描的本地演练参数启动后，执行以下隔离验证；脚本会清理自己的视频、任务、回执和 Outbox 数据：
+
+```powershell
+.\scripts\e2e-video-recovery-receipt.ps1
+```
 
 视频发布后的关注流扇出使用独立 Inbox 队列。User Service 等下游短暂不可用时，消息会携带尝试次数进入 `video.publish.inbox.retry.queue`，在 Broker 持久化等待 5 秒后回流主队列；第 3 次仍失败才进入 `video.publish.inbox.dead.queue`。该策略避免消费者高频重试，也不会影响视频已发布的主状态机。
 

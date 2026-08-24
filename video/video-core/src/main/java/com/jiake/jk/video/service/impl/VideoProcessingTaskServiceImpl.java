@@ -4,31 +4,39 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiake.jk.common.exception.YHClientException;
 import com.jiake.jk.common.exception.YHServerException;
 import com.jiake.jk.common.trace.TraceContext;
+import com.jiake.jk.common.utils.SnowflakeUtils;
 import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.mapper.MessageOutBoxMapper;
 import com.jiake.jk.video.mapper.VideoMapper;
+import com.jiake.jk.video.mapper.VideoProcessingRecoveryRequestMapper;
 import com.jiake.jk.video.mapper.VideoProcessingTaskMapper;
 import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import com.jiake.jk.video.pojo.entity.Video;
+import com.jiake.jk.video.pojo.entity.VideoProcessingRecoveryRequest;
 import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.mq.VideoReviewMessage;
+import com.jiake.jk.video.pojo.response.VideoRecoveryOperationResponse;
 import com.jiake.jk.video.service.OutboxMessagePublisher;
 import com.jiake.jk.video.service.VideoProcessingTaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.QueueInformation;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -54,9 +62,11 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
     private final VideoProcessingTaskMapper videoProcessingTaskMapper;
     private final VideoMapper videoMapper;
     private final MessageOutBoxMapper messageOutBoxMapper;
+    private final VideoProcessingRecoveryRequestMapper recoveryRequestMapper;
     private final ObjectMapper objectMapper;
     private final OutboxMessagePublisher outboxMessagePublisher;
     private final RabbitAdmin rabbitAdmin;
+    private final SnowflakeUtils snowflakeUtils;
 
     @Override
     @Transactional
@@ -155,14 +165,83 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
 
     @Override
     @Transactional
-    public boolean recoverExpiredProcessingTask(Long videoId) {
-        VideoProcessingTask task = videoProcessingTaskMapper.selectOne(
-                new LambdaQueryWrapper<VideoProcessingTask>()
-                        .select(VideoProcessingTask::getId, VideoProcessingTask::getVideoId)
-                        .eq(VideoProcessingTask::getVideoId, videoId)
-                        .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)
-                        .le(VideoProcessingTask::getLeaseExpireAt, LocalDateTime.now()));
-        return task != null && recoverExpiredTask(task, LocalDateTime.now());
+    public VideoRecoveryOperationResponse recoverExpiredProcessingTask(Long videoId, String idempotencyKey,
+                                                                        String traceId, String requestedBy) {
+        RecoveryHeaders headers = validateRecoveryHeaders(videoId, idempotencyKey, traceId, requestedBy);
+        LocalDateTime now = LocalDateTime.now();
+        VideoProcessingRecoveryRequest receipt = new VideoProcessingRecoveryRequest();
+        receipt.setId(snowflakeUtils.nextId());
+        receipt.setIdempotencyKey(headers.idempotencyKey());
+        receipt.setVideoId(videoId);
+        receipt.setRequestedBy(headers.requestedBy());
+        receipt.setTraceId(headers.traceId());
+        receipt.setStatus(VideoProcessingRecoveryRequest.RecoveryStatus.PENDING);
+        receipt.setCreatedAt(now);
+        receipt.setUpdatedAt(now);
+
+        int claimed = recoveryRequestMapper.insertIgnore(receipt);
+        if (claimed == 0) {
+            VideoProcessingRecoveryRequest existing = recoveryRequestMapper
+                    .selectByIdempotencyKeyForUpdate(headers.idempotencyKey());
+            if (existing == null) {
+                throw new YHServerException("恢复幂等键竞争后无法读取持久化回执");
+            }
+            validateReceiptOwner(existing, videoId, headers.requestedBy());
+            if (existing.getStatus() == VideoProcessingRecoveryRequest.RecoveryStatus.PENDING) {
+                throw new YHServerException("恢复请求仍处于未完成状态，请稍后对账");
+            }
+            return toRecoveryResponse(existing, true);
+        }
+        if (claimed != 1) {
+            throw new YHServerException("恢复幂等键抢占结果异常");
+        }
+
+        int taskReset = videoProcessingTaskMapper.update(new LambdaUpdateWrapper<VideoProcessingTask>()
+                .set(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PENDING)
+                .set(VideoProcessingTask::getLeaseExpireAt, null)
+                .eq(VideoProcessingTask::getVideoId, videoId)
+                .eq(VideoProcessingTask::getStatus, VideoProcessingTask.ProcessingStatus.PROCESSING)
+                .le(VideoProcessingTask::getLeaseExpireAt, now));
+        if (taskReset == 0) {
+            if (recoveryRequestMapper.markPreconditionRejected(receipt.getId(), now) != 1) {
+                throw new YHServerException("恢复拒绝回执写入失败");
+            }
+            receipt.setStatus(VideoProcessingRecoveryRequest.RecoveryStatus.REJECTED);
+            receipt.setReason(VideoProcessingRecoveryRequest.RecoveryReason.PRECONDITION_NOT_MET);
+            return toRecoveryResponse(receipt, false);
+        }
+
+        int videoRestored = videoMapper.update(null, new LambdaUpdateWrapper<Video>()
+                .set(Video::getStatus, Video.VideoStatus.PENDING_REVIEW)
+                .eq(Video::getId, videoId)
+                .eq(Video::getStatus, Video.VideoStatus.PROCESSING));
+        if (videoRestored != 1) {
+            throw new YHServerException("视频处理任务与视频状态不一致");
+        }
+        Long outboxId = createRecoveryOutbox(videoId, headers.traceId());
+        if (recoveryRequestMapper.markAccepted(receipt.getId(), outboxId, now) != 1) {
+            throw new YHServerException("恢复接受回执写入失败");
+        }
+        receipt.setStatus(VideoProcessingRecoveryRequest.RecoveryStatus.ACCEPTED);
+        receipt.setOutboxId(outboxId);
+        return toRecoveryResponse(receipt, false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VideoRecoveryOperationResponse getRecoveryStatus(Long videoId, String idempotencyKey,
+                                                             String traceId, String requestedBy) {
+        RecoveryHeaders headers = validateRecoveryHeaders(videoId, idempotencyKey, traceId, requestedBy);
+        VideoProcessingRecoveryRequest receipt = recoveryRequestMapper
+                .selectByIdempotencyKey(headers.idempotencyKey());
+        if (receipt == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "恢复回执不存在");
+        }
+        validateReceiptOwner(receipt, videoId, headers.requestedBy());
+        if (receipt.getStatus() == VideoProcessingRecoveryRequest.RecoveryStatus.PENDING) {
+            throw new YHServerException("恢复请求仍处于未完成状态，请稍后对账");
+        }
+        return toRecoveryResponse(receipt, true);
     }
 
     @Override
@@ -193,7 +272,7 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
         if (videoRestored != 1) {
             throw new YHServerException("视频处理任务与视频状态不一致");
         }
-        createRecoveryOutbox(task.getVideoId());
+        createRecoveryOutbox(task.getVideoId(), TraceContext.getOrCreateTraceId());
         return true;
     }
 
@@ -202,35 +281,85 @@ public class VideoProcessingTaskServiceImpl implements VideoProcessingTaskServic
         return queueInformation == null ? -1 : queueInformation.getMessageCount();
     }
 
-    private void createRecoveryOutbox(Long videoId) {
+    private Long createRecoveryOutbox(Long videoId, String traceId) {
         Video video = videoMapper.selectById(videoId);
         if (video == null) {
-            log.warn("Skip recovery enqueue because video {} no longer exists", videoId);
-            return;
+            throw new YHServerException("恢复视频不存在，拒绝创建 Outbox");
         }
         VideoReviewMessage message = new VideoReviewMessage();
-        message.setTraceId(TraceContext.getOrCreateTraceId());
+        message.setTraceId(traceId);
         message.setVideoId(videoId);
         message.setVideoUrl(video.getUrl());
         message.setDescription(video.getDescription());
         try {
             MessageOutbox outbox = new MessageOutbox();
+            outbox.setId(snowflakeUtils.nextId());
             outbox.setBusinessId(videoId);
             outbox.setExchangeName("");
             outbox.setRoutingKey(RabbitMQConstant.VIDEO_REVIEW_QUEUE);
             outbox.setMessageBody(objectMapper.writeValueAsString(message));
             outbox.setStatus(MessageOutbox.OutboxStatus.PENDING);
             outbox.setRetryCount(0);
-            messageOutBoxMapper.insert(outbox);
+            if (messageOutBoxMapper.insert(outbox) != 1) {
+                throw new YHServerException("视频恢复 Outbox 写入失败");
+            }
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
                     outboxMessagePublisher.publish(outbox.getId());
                 }
             });
+            return outbox.getId();
         } catch (JsonProcessingException exception) {
             throw new YHServerException("序列化视频恢复消息失败");
         }
+    }
+
+    private RecoveryHeaders validateRecoveryHeaders(Long videoId, String idempotencyKey,
+                                                     String traceId, String requestedBy) {
+        if (videoId == null || videoId <= 0) {
+            throw new YHClientException("videoId 非法");
+        }
+        return new RecoveryHeaders(
+                requireHeader(idempotencyKey, 255, "Idempotency-Key"),
+                requireHeader(traceId, 128, "X-Trace-Id"),
+                requireHeader(requestedBy, 64, "X-FlowPilot-Service"));
+    }
+
+    private String requireHeader(String value, int maxLength, String name) {
+        if (value == null || value.isBlank()) {
+            throw new YHClientException(name + " 不能为空");
+        }
+        String normalized = value.trim();
+        if (normalized.length() > maxLength || normalized.chars().anyMatch(Character::isISOControl)) {
+            throw new YHClientException(name + " 非法或超过长度限制");
+        }
+        return normalized;
+    }
+
+    private void validateReceiptOwner(VideoProcessingRecoveryRequest receipt, Long videoId, String requestedBy) {
+        if (!Objects.equals(receipt.getVideoId(), videoId)
+                || !Objects.equals(receipt.getRequestedBy(), requestedBy)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "幂等键已绑定到其他视频或服务");
+        }
+    }
+
+    private VideoRecoveryOperationResponse toRecoveryResponse(VideoProcessingRecoveryRequest receipt,
+                                                                boolean replayed) {
+        return new VideoRecoveryOperationResponse(
+                String.valueOf(receipt.getId()),
+                receipt.getVideoId(),
+                receipt.getIdempotencyKey(),
+                receipt.getStatus().getValue(),
+                receipt.getReason() == null ? null : receipt.getReason().getValue(),
+                receipt.getOutboxId() == null ? null : String.valueOf(receipt.getOutboxId()),
+                receipt.getTraceId(),
+                receipt.getRequestedBy(),
+                replayed,
+                receipt.getCreatedAt());
+    }
+
+    private record RecoveryHeaders(String idempotencyKey, String traceId, String requestedBy) {
     }
 
     private void createPublishedInboxOutbox(Long videoId) {

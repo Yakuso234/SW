@@ -118,11 +118,37 @@ POST /video/api/private/follow-feed/operations/recover-dead?batchSize=10
 
 Grafana 看板 `SW / SW 核心链路可观测性` 可展示：网关限流拒绝、Outbox 失败、转码耗时与失败、关注流重试/最终死信/人工恢复。AI 工具调用可在 Prometheus 查询 `sw_ai_creator_assistant_tool_invocations_total`，只按工具名计数，不记录用户、视频或提示词。优先展示与本次演练对应的非零指标；没有样本时如实说明，不制造曲线。
 
-## 6. 可选：DG—SW 受控恢复联调
+## 6. DG—SW 幂等恢复回执联调
 
-该演练只用于本地隔离数据。先为 Video Service 临时增加 `--sw.video-processing.automatic-recovery-enabled=false` 并重启，避免自动扫描抢先恢复；测试任务必须是 `PROCESSING + 过期 lease`，并指向真实可读的 MinIO 源对象。DG 完成调查、提案和人工审批后，调用 Video 私有 `recover-expired` 接口，再回查 Video、ProcessingTask 和 Outbox 三类状态。
+该演练只用于本地隔离数据。先为 Video Service 临时增加 `--sw.video-processing.automatic-recovery-enabled=false` 并重启，避免自动扫描抢先恢复；测试任务必须是 `PROCESSING + 过期 lease`，并指向真实可读的 MinIO 源对象。
 
-成功证据应同时包含：DG ExecutionRecord `succeeded/attempts=1`，以及 SW 的 `PUBLISHED / SUCCEEDED / Outbox SUCCESS`。演练结束立即删除临时参数并重启 Video，恢复默认自动补偿。不得使用重要业务数据，也不得把该本地联调描述成服务间 Token/mTLS 已完成。
+DG 执行恢复时直连 Video Service：
+
+```text
+POST /video/api/private/processing/{videoId}/recover-expired
+Idempotency-Key: {proposalId}:recover_expired_video_processing
+X-Trace-Id: {traceId}
+X-FlowPilot-Service: flowpilot
+```
+
+首次成功会返回持久化 `ACCEPTED` 回执，包含 `recoveryId`、`outboxId`、原始幂等键和 TraceId；同一 Key 重放必须返回相同 `recoveryId/outboxId`，且 `replayed=true`。DG 在超时或响应丢失时必须先查询：
+
+```text
+GET /video/api/private/processing/{videoId}/recovery-status
+Idempotency-Key: {sameKey}
+X-Trace-Id: {traceId}
+X-FlowPilot-Service: flowpilot
+```
+
+查询命中 `ACCEPTED` 即补写成功；命中 `REJECTED` 即明确失败；404 才能用同一 Key 安全重发 POST；Key 对其他视频或服务身份返回 409，不能继续执行。当前版本不校验服务 Token/mTLS，因此只允许受限内网调用。
+
+SW 自检可执行：
+
+```powershell
+.\scripts\e2e-video-recovery-receipt.ps1
+```
+
+它覆盖同 Key 并发重放、不同 Key 竞争、前置条件拒绝、只读 GET 和事务回滚，并在 finally 清理专用数据。成功证据应同时包含 DG Execution 的决议/对账状态，以及 SW 回执、Video、ProcessingTask 和 Outbox 状态。演练结束立即删除临时参数并重启 Video，恢复默认自动补偿。
 
 ## 7. 面试讲解顺序（约 6 分钟）
 

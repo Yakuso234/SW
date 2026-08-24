@@ -4,37 +4,39 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jiake.jk.common.utils.SnowflakeUtils;
+import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.mapper.MessageOutBoxMapper;
 import com.jiake.jk.video.mapper.VideoMapper;
+import com.jiake.jk.video.mapper.VideoProcessingRecoveryRequestMapper;
 import com.jiake.jk.video.mapper.VideoProcessingTaskMapper;
 import com.jiake.jk.video.pojo.entity.MessageOutbox;
 import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.entity.VideoProcessingTask;
 import com.jiake.jk.video.pojo.mq.VideoPublishedMessage;
-import com.jiake.jk.video.constant.RabbitMQConstant;
 import com.jiake.jk.video.service.impl.VideoProcessingTaskServiceImpl;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.isNull;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,8 +47,10 @@ class VideoProcessingTaskServiceImplTest {
     @Mock private VideoProcessingTaskMapper videoProcessingTaskMapper;
     @Mock private VideoMapper videoMapper;
     @Mock private MessageOutBoxMapper messageOutBoxMapper;
+    @Mock private VideoProcessingRecoveryRequestMapper recoveryRequestMapper;
     @Mock private OutboxMessagePublisher outboxMessagePublisher;
     @Mock private RabbitAdmin rabbitAdmin;
+    @Mock private SnowflakeUtils snowflakeUtils;
 
     @BeforeAll
     static void initializeMybatisPlusLambdaCache() {
@@ -65,8 +69,7 @@ class VideoProcessingTaskServiceImplTest {
 
     @Test
     void claimVideoProcessing_shouldClaimVideoAndTaskWithLease() {
-        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, objectMapper, outboxMessagePublisher, rabbitAdmin);
+        VideoProcessingTaskServiceImpl service = newService();
         when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
 
@@ -84,8 +87,7 @@ class VideoProcessingTaskServiceImplTest {
 
     @Test
     void recoverExpiredProcessingTasks_shouldResetTaskAndCreateRecoveryOutbox() {
-        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, objectMapper, outboxMessagePublisher, rabbitAdmin);
+        VideoProcessingTaskServiceImpl service = newService();
         VideoProcessingTask expiredTask = new VideoProcessingTask();
         expiredTask.setId(802L);
         expiredTask.setVideoId(902L);
@@ -93,14 +95,12 @@ class VideoProcessingTaskServiceImplTest {
         video.setId(902L);
         video.setUrl("2026/08/recovery.mp4");
         video.setDescription("租约恢复测试");
+        when(snowflakeUtils.nextId()).thenReturn(1002L);
         when(videoProcessingTaskMapper.selectList(any())).thenReturn(List.of(expiredTask));
         when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoMapper.selectById(902L)).thenReturn(video);
-        when(messageOutBoxMapper.insert(any(MessageOutbox.class))).thenAnswer(invocation -> {
-            invocation.getArgument(0, MessageOutbox.class).setId(1002L);
-            return 1;
-        });
+        when(messageOutBoxMapper.insert(any(MessageOutbox.class))).thenReturn(1);
         TransactionSynchronizationManager.initSynchronization();
 
         assertEquals(1, service.recoverExpiredProcessingTasks());
@@ -117,8 +117,7 @@ class VideoProcessingTaskServiceImplTest {
 
     @Test
     void recoverExpiredProcessingTasks_shouldSkipScheduledRecoveryWhenDisabled() {
-        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, objectMapper, outboxMessagePublisher, rabbitAdmin);
+        VideoProcessingTaskServiceImpl service = newService();
         ReflectionTestUtils.setField(service, "automaticRecoveryEnabled", false);
 
         assertEquals(0, service.recoverExpiredProcessingTasks());
@@ -128,32 +127,32 @@ class VideoProcessingTaskServiceImplTest {
     }
 
     @Test
-    void recoverExpiredProcessingTask_shouldRecoverOnlyAnExpiredLease() {
-        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, objectMapper, outboxMessagePublisher, rabbitAdmin);
-        VideoProcessingTask expiredTask = new VideoProcessingTask();
-        expiredTask.setId(803L);
-        expiredTask.setVideoId(903L);
+    void recoverExpiredProcessingTask_shouldReturnAcceptedReceipt() {
+        VideoProcessingTaskServiceImpl service = newService();
         Video video = new Video();
         video.setId(903L);
         video.setUrl("2026/08/recovery.mp4");
-        when(videoProcessingTaskMapper.selectOne(any())).thenReturn(expiredTask);
+        when(snowflakeUtils.nextId()).thenReturn(1101L, 1102L);
+        when(recoveryRequestMapper.insertIgnore(any())).thenReturn(1);
         when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoMapper.selectById(903L)).thenReturn(video);
         when(messageOutBoxMapper.insert(any(MessageOutbox.class))).thenReturn(1);
+        when(recoveryRequestMapper.markAccepted(any(), any(), any())).thenReturn(1);
         TransactionSynchronizationManager.initSynchronization();
 
-        assertTrue(service.recoverExpiredProcessingTask(903L));
+        var response = service.recoverExpiredProcessingTask(
+                903L, "proposal-903:recover_expired_video_processing", "trace-903", "flowpilot");
 
-        verify(videoProcessingTaskMapper).selectOne(any());
+        assertEquals("ACCEPTED", response.status());
+        assertEquals("1101", response.recoveryId());
+        assertEquals("1102", response.outboxId());
         verify(messageOutBoxMapper).insert(any(MessageOutbox.class));
     }
 
     @Test
     void completeVideoProcessing_shouldPersistPublishedAtWithPublishedStatus() throws Exception {
-        VideoProcessingTaskServiceImpl service = new VideoProcessingTaskServiceImpl(
-                videoProcessingTaskMapper, videoMapper, messageOutBoxMapper, objectMapper, outboxMessagePublisher, rabbitAdmin);
+        VideoProcessingTaskServiceImpl service = newService();
         when(videoProcessingTaskMapper.update(any(LambdaUpdateWrapper.class))).thenReturn(1);
         when(videoMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
         Video publishedVideo = new Video();
@@ -182,5 +181,10 @@ class VideoProcessingTaskServiceImplTest {
         assertEquals(904L, event.getVideoId());
         assertEquals(905L, event.getCreatorId());
         assertDoesNotThrow(() -> java.time.LocalDateTime.parse(event.getPublishedAt()));
+    }
+
+    private VideoProcessingTaskServiceImpl newService() {
+        return new VideoProcessingTaskServiceImpl(videoProcessingTaskMapper, videoMapper, messageOutBoxMapper,
+                recoveryRequestMapper, objectMapper, outboxMessagePublisher, rabbitAdmin, snowflakeUtils);
     }
 }

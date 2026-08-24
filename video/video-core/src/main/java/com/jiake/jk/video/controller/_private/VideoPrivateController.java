@@ -6,6 +6,7 @@ import com.jiake.jk.video.service.VideoProcessingTaskService;
 import com.jiake.jk.video.service.FollowFeedDeadLetterRecoveryService;
 import com.jiake.jk.video.pojo.entity.Video;
 import com.jiake.jk.video.pojo.response.VideoProcessingStatusResponse;
+import com.jiake.jk.video.pojo.response.VideoRecoveryOperationResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "VideoPrivate")
@@ -78,8 +80,23 @@ public class VideoPrivateController {
      * 仅允许恢复租约已过期且仍处于 PROCESSING 的任务；通过新 Outbox 投递，不直接重放 DLQ 原消息。
      */
     @org.springframework.web.bind.annotation.PostMapping("/processing/{videoId}/recover-expired")
-    public Result<Boolean> recoverExpiredProcessingTask(@PathVariable Long videoId) {
-        return Result.success(videoProcessingTaskService.recoverExpiredProcessingTask(videoId));
+    public Result<VideoRecoveryOperationResponse> recoverExpiredProcessingTask(
+            @PathVariable Long videoId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader("X-Trace-Id") String traceId,
+            @RequestHeader("X-FlowPilot-Service") String requestedBy) {
+        return Result.success(videoProcessingTaskService.recoverExpiredProcessingTask(
+                videoId, idempotencyKey, traceId, requestedBy));
+    }
+
+    @GetMapping("/processing/{videoId}/recovery-status")
+    public Result<VideoRecoveryOperationResponse> getRecoveryStatus(
+            @PathVariable Long videoId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader("X-Trace-Id") String traceId,
+            @RequestHeader("X-FlowPilot-Service") String requestedBy) {
+        return Result.success(videoProcessingTaskService.getRecoveryStatus(
+                videoId, idempotencyKey, traceId, requestedBy));
     }
 
     /**
