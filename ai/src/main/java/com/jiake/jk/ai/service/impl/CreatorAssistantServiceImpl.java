@@ -2,6 +2,7 @@ package com.jiake.jk.ai.service.impl;
 
 import com.jiake.jk.ai.properties.CreatorAssistantProperties;
 import com.jiake.jk.ai.service.CreatorAssistantService;
+import com.jiake.jk.ai.service.CreatorMemoryService;
 import com.jiake.jk.ai.tool.VideoProcessingTools;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -32,13 +33,16 @@ public class CreatorAssistantServiceImpl implements CreatorAssistantService {
     private final ChatClient creatorAssistantChatClient;
     private final CreatorAssistantProperties properties;
     private final VideoProcessingTools videoProcessingTools;
+    private final CreatorMemoryService creatorMemoryService;
 
     public CreatorAssistantServiceImpl(@Qualifier("creatorAssistantChatClient") ChatClient creatorAssistantChatClient,
                                        CreatorAssistantProperties properties,
-                                       VideoProcessingTools videoProcessingTools) {
+                                       VideoProcessingTools videoProcessingTools,
+                                       CreatorMemoryService creatorMemoryService) {
         this.creatorAssistantChatClient = creatorAssistantChatClient;
         this.properties = properties;
         this.videoProcessingTools = videoProcessingTools;
+        this.creatorMemoryService = creatorMemoryService;
     }
 
     @Override
@@ -54,19 +58,30 @@ public class CreatorAssistantServiceImpl implements CreatorAssistantService {
         }
 
         log.info("Creator assistant stream started, userId={}, traceId={}", userId, traceId);
-        return Flux.concat(
+        StringBuilder assistantText = new StringBuilder();
+        return creatorMemoryService.buildContext(userId, message).flatMapMany(memoryContext -> Flux.concat(
                         Flux.just(new StreamEvent("meta", "traceId=" + traceId)),
                         creatorAssistantChatClient.prompt()
-                                .system(SYSTEM_PROMPT)
+                                .system(SYSTEM_PROMPT + memoryContext)
                                 .user(message)
                                 .tools(videoProcessingTools)
                                 .toolContext(Map.of("creatorUserId", userId, "traceId", traceId))
                                 .stream()
                                 .content()
-                                .map(token -> new StreamEvent("delta", token))
+                                .map(token -> {
+                                    assistantText.append(token);
+                                    return new StreamEvent("delta", token);
+                                })
                                 .timeout(Duration.ofSeconds(properties.getStreamTimeoutSeconds())),
-                        Flux.just(new StreamEvent("done", "[DONE]"))
-                )
+                        Flux.just(new StreamEvent("done", "[DONE]")),
+                        Flux.defer(() -> creatorMemoryService.appendSessionTurn(userId, message, assistantText.toString())
+                                .onErrorResume(error -> {
+                                    log.debug("Creator session memory write skipped, type={}",
+                                            error.getClass().getSimpleName());
+                                    return reactor.core.publisher.Mono.empty();
+                                })
+                                .thenMany(Flux.empty()))
+                ))
                 .onErrorResume(TimeoutException.class, exception -> {
                     log.warn("Creator assistant timed out, userId={}, traceId={}", userId, traceId);
                     return Flux.just(new StreamEvent("error", "模型响应超时，请稍后重试"));

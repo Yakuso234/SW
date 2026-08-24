@@ -1,217 +1,107 @@
 # SW 工作流程副记忆
 
-> 这是 SW 的工作进度和协作流程记录，不替代面试价值文档。进度不确定时，先阅读本文件。
+> 这是 SW 的当前进度索引。进度不确定时先读本文件，再读 [项目专属记忆](SW-项目记忆.md)；技术复盘统一写入 [面试问题清单](SW-面试问题清单.md)。
 
-## 1. 使用规则
+## 1. 当前状态
 
-- 面试价值、技术问题、故障复盘和设计取舍写入 [SW-面试问题清单](SW-面试问题清单.md)。
-- 当前进度、已完成工作、验证证据、阻塞项和下一步写入本文件。
-- 每次完成一个较大的开发/分析阶段后更新本文件；没有形成新结论时不重复记录流水账。
-- 进度分类统一使用：`已完成并验证`、`已实现待补证据`、`规划中`、`存量扩展`、`阻塞`。
+- 项目状态：`秋招核心主线已完成并验证`。
+- 求职定位：SW 作为 Java 微服务主项目；DG/FlowPilot 作为独立的 Python Agent 项目，两者不互相包装成从属模块。
+- 主线范围：Gateway、User、Video、Video Processor、AI 和 `SW-web`，覆盖可靠发布、内容消费互动、创作者运营和受控 AI 助手。
+- 已移除范围：`product`、`order`、`live`、`chat`、`admin` 及对应路由和本地配置；历史仍可从 Git 恢复。
+- 运行方式：Docker Compose 仅运行 `sw-dev` 隔离中间件；Java 服务由 IDEA + JDK 21 启动；前端使用 Vite。
+- 当前工作：视频电商与个性化记忆增强已完成本地验证，等待用户审核和提交。
+- 当前阻塞：无；生产化增强与真实 Qwen Embedding 回归按后续计划推进。
 
-## 2. 当前项目目标
+## 2. 关键完成证据
 
-- 主项目：SW 短视频微服务平台。
-- 求职目标：中国大陆 2026 秋招，Java 后端和 Python Agent 应用开发。
-- 当前阶段：恢复项目记忆，建立可持续的面试准备资料体系。
-- 当前主线：可靠视频发布、内容消费互动、受控 AI 创作者助手和可观测性。
-- 非当前主线：`duoagent` 尚未完成重构；MCP 扩展不作为当前核心面试闭环。商城、订单、直播、聊天和后台管理存量模块已从仓库主动移除。
+- 视频发布：真实媒体完成预签名上传、MinIO、Outbox、RabbitMQ、FFmpeg 和状态回写，达到 `PUBLISHED / SUCCEEDED / Outbox SUCCESS`。
+- 播放互动：签名媒体 Range 请求返回 206，浏览器播放器 `readyState=4`；真实 JWT 下点赞、收藏、评论及回读通过。
+- 内容闭环：公开/关注 Feed、视频与创作者搜索、关注、收藏读取、作品管理、粉丝数、观看汇总和 7 天趋势均已完成；关注发布 E2E 与每日观看去重已验证。
+- 可靠性：无效媒体失败、处理租约恢复、关注流延迟重试/DLQ/审计恢复均有测试或脚本证据。
+- AI：Spring AI + Qwen SSE 可用，创作者身份由 Gateway/ToolContext 绑定，工具只读，支持处理状态查询和失败诊断。
+- 可观测性：TraceId、Actuator、Micrometer、Prometheus/Grafana 已覆盖 Outbox、转码、关注流和 AI 工具调用。
+- 双项目联调：DG 对隔离过期任务 `7321572775443310` 完成调查、提案、HITL 审批和受控恢复；SW 后验为 Video `PUBLISHED`、ProcessingTask `SUCCEEDED/retryCount=1/lease=null`，恢复与发布 Outbox 均成功。
+- 固定本机串行基线：2 秒测试视频、1 次预热 + 5 次测量，从预签名请求到 `PUBLISHED` 的 P50/P95 为 3500/3506 ms；仅用于同机回归，不代表生产 SLA。
 
-## 3. 已完成并验证
+## 3. 后续增强项
 
-- 已完成项目结构和核心模块梳理，确认 Gateway、User、Video、Video Processor、AI 是当前核心链路。
-- 已建立 [SW 项目专属记忆](SW-项目记忆.md)。
-- 已建立 [面试架构理解文档](SW-面试架构理解.md)。
-- 已建立 [面试问题清单/面试价值文档](SW-面试问题清单.md)。
-- 已阅读并参考已有 `README.md`、`STUDY.md`、`docs/SW-简历项目说明.md` 和 `docs/DEMO_RUNBOOK.md`。
-- 已核对视频 Outbox、处理状态机、租约恢复、Feed Inbox、延迟重试、DLQ 审计恢复、互动消费幂等、Gateway 限流、AI ToolContext 权限和核心测试入口。
-- README 已增加四份项目准备文档的入口。
-- 已创建本机 `.env`，设置 `COMPOSE_PROJECT_NAME=sw-dev`；README 和 Runbook 的 Docker 命令显式使用 `sw-dev`，用于隔离 SW 的容器、网络和数据卷。
+1. 将点赞/收藏事件统一纳入 Outbox，补齐发送确认、重试和运维查询。
+2. 为私有 Feign/HTTP 接口增加服务身份、签名 Token 或 mTLS。
+3. 使用 Testcontainers/Compose CI 和 Flyway/Liquibase 固化真实集成回归与数据库迁移。
+4. 为 FFmpeg 增加并发配额、超时取消、磁盘保护和进程隔离。
+5. 为高粉丝创作者设计分批扇出、限流、热点读扩散和 Inbox 清理策略。
+6. 为 AI 工具补充结构化结果、注入防护、离线评测和模型降级。
 
-## 4. 已实现待补证据
-
-- 继续确认本地成功上传、无效媒体失败、处理回写不可用后的租约恢复和关注流死信恢复的现场证据是否仍可在重装系统后的环境复现。
-- 继续核对固定环境性能基线的测试时间、机器配置、样本口径和脚本输出；不得把回归基线表述成生产性能。
-- 如果后续调整代码，优先为关键改动补测试、脚本、日志或指标，再更新面试价值文档。
-- 本机已安装并启动 Docker Desktop，已实际拉取并启动 MySQL、Redis、RabbitMQ、MinIO、Nacos；Java 服务仍由 IDEA 启动。
-
-## 5. 规划中：面向 2026 秋招的增强项
-
-1. 点赞/收藏事件完全 Outbox 化，补齐发送确认和重试。
-2. 私有 Feign 接口增加服务间身份认证，不只依赖 Gateway 阻断。
-3. 用 Testcontainers/Compose CI 固化真实中间件集成回归，并规范数据库迁移。
-4. 增加 FFmpeg 并发、磁盘、超时和进程资源隔离。
-5. 处理高粉丝创作者的 Feed 扇出放大和 Inbox 清理。
-6. 统一 Reactor、Feign、RabbitMQ 的标准链路追踪。
-7. 为 AI 工具增加评测集、结构化结果、提示词注入防护和模型降级。
-8. 明确 MCP 与 Python Agent 的工具边界，再逐步扩展单 Agent 工具编排。
-
-## 6. 后续每次工作的建议流程
+## 4. 继续工作时的流程
 
 ```text
-先读本文件确认进度
-  -> 再读 SW-项目记忆确认事实边界
-  -> 定位代码、测试、脚本和现有文档
-  -> 做修改或分析
-  -> 运行比例合适的验证
-  -> 发现高价值问题/取舍/故障时更新面试问题清单
-  -> 更新本文件的完成状态、证据和下一步
+读取本文件确认当前状态
+  -> 读取 SW-项目记忆确认事实与边界
+  -> 定位代码、测试、脚本和配置
+  -> 实施修改
+  -> 按风险运行单测、构建或 E2E
+  -> 将高价值问题写入 SW-面试问题清单
+  -> 更新本文件的状态、证据和下一步
 ```
 
-## 7. 工作记录
+维护规则：只记录当前状态、验证证据、阻塞和重要里程碑；已经被后续结果推翻的临时阻塞不保留为当前待办，普通命令执行和提交流水不写入本文件。
 
-### 2026-08-18：恢复项目记忆和面试材料
+## 5. 精选里程碑
 
-- 状态：`已完成并验证`
-- 完成：梳理仓库结构、核心配置、主链路代码、已有项目说明和 Runbook。
-- 产出：项目专属记忆、架构理解文档、面试价值文档。
-- 重要结论：SW 核心项目基本完成；可靠视频异步处理是第一主线；AI 目前是受控只读助手，不包装成多 Agent；后续优化单独列为增强路线。
-- 下一步：继续以开发中出现的真实问题和证据为单位维护两份记忆文档。
+### 2026-08-18：恢复项目记忆与本地运行环境
 
-### 2026-08-18：配置 SW 本地 Docker 中间件隔离
+- 建立项目记忆、架构理解、面试问题和演示 Runbook。
+- 使用 `COMPOSE_PROJECT_NAME=sw-dev` 隔离容器、网络、数据卷和宿主机端口；确认 `.env` 只供 Compose 使用，IDEA 进程通过本地环境读取配置。
+- 使用 JDK 21 和 IntelliJ Maven 完成核心模块编译，Java 服务保持由 IDEA 启动。
 
-- 状态：`已实现待补证据`
-- 本次目标：为 SW 配置本机中间件环境，并让容器实例与其他项目分区隔离。
-- 完成内容：创建被 Git 忽略的 `.env`；设置 `COMPOSE_PROJECT_NAME=sw-dev`；将 MySQL 配置为独立的 `sw_local` 用户；README、Runbook 和启动脚本统一使用 `--project-name sw-dev`。
-- 验证证据：静态核对 Compose 配置、`.env` 忽略规则和启动脚本；当前机器未发现 Docker CLI 或 Docker Desktop，尚未实际启动容器。
-- 新发现的面试价值：Docker Compose project name 可以同时隔离容器、网络和命名卷；本地数据库不应使用 root 作为应用连接用户。
-- 当前风险/阻塞：需要安装并启动 Docker Desktop，重新打开 PowerShell 后才能执行中间件启动和健康检查。
-- 下一步：执行 `docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos`，再核对容器状态、端口和 Nacos 配置导入。
+### 2026-08-18：重建短视频主线前端
 
-### 2026-08-18：配置 Maven 与 Java 21
+- 在同仓库重建 `SW-web`，保留登录、Feed、互动、投稿、创作者工作台和 AI 助手；视觉使用原创赛博朋克 HUD，不使用官方素材。
+- Vite 构建和浏览器走查通过；后续真实联调已替代早期 Demo Data 证据。
 
-- 状态：`已完成并验证`
-- 本次目标：补齐项目 Maven/Java 构建环境，并确认后续 Java 服务由 IDEA 启动。
-- 完成内容：安装 Temurin JDK 21.0.12；配置用户级 `JAVA_HOME`、`MAVEN_HOME`、`MAVEN_USER_HOME` 和 Maven PATH；使用 IntelliJ 自带 Maven 3.9.16；将依赖缓存固定到 `C:\Users\yujia\.m2\repository`；创建用户 Maven settings。
-- 验证证据：`gateway + common` 执行 `compile` 成功，编译器使用 `javac [debug release 21]`。
-- 运行边界：Docker Compose 只启动 MySQL、Redis、RabbitMQ、MinIO、Nacos 和可选 Prometheus/Grafana；Gateway、User、Video、Video Processor、AI 等 Java 服务由 IDEA 启动，不纳入 Compose app profile。
-- 注意事项：已打开的终端/IDEA 可能不会自动读取新用户环境变量，需要重启终端或 IDEA；Maven 首次依赖下载耗时较长属于正常现象。
-- 下一步：安装并启动 Docker Desktop，执行 SW 中间件启动脚本，再导入 Nacos 配置并做基础设施健康检查。
+### 2026-08-23：完成真实发布、播放和互动闭环
 
-### 2026-08-18：完成 SW Docker 中间件隔离和 IDEA 启动验证
+- 修复 Redisson 宿主机地址、MinIO Bucket 初始化、私有对象签名播放、评论用户资料缺失和空头像 Key 等问题。
+- 真实视频发布成功，Range 206、浏览器播放、点赞、收藏、评论和身份门禁全部验证。
+- 配置与密钥事故沉淀为面试问题：Compose/IDEA/Nacos 是不同注入层，Git 忽略不等于秘密不会出现在诊断输出中。
 
-- 状态：`已完成并验证`
-- 本次目标：启动项目专属中间件，导入 Nacos 配置，并确认 Java 服务可从 IDEA 访问这些中间件。
-- 完成内容：Docker Compose 使用项目名 `sw-dev`；创建 `sw-dev_default` 网络和 `sw-dev_*` 数据卷；启动 MySQL、Redis、RabbitMQ、MinIO、Nacos；导入 `.file/config/*.yaml` 到 Nacos `dev` 命名空间；补齐 IDEA 进程所需的用户级中间件凭据。
-- 验证证据：容器均处于 `Up`；Nacos readiness 返回 HTTP 200；网关临时启动成功并监听 `10086`；网关 `/actuator/health` 返回 HTTP 200；网关成功从 Nacos 加载 `common-dev.yaml`、`gateway-dev.yaml`，并完成 Nacos 注册。
-- 端口分区：MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`；Java 网关端口 `10086` 仍由 IDEA 使用。
-- 新发现的面试价值：`.env` 只对 Compose 生效，IDEA 直接启动的 Java 进程不会自动读取 `.env`；因此需要通过用户环境变量或 IDEA Run Configuration 注入凭据。第一次网关健康检查因缺少 Redis 密码返回 `WRONGPASS`，补齐环境变量后恢复为 `UP`。
-- 当前风险/阻塞：数据库初始化脚本和完整视频 E2E 尚未在本轮重装后的环境重新验收；现阶段只完成基础设施和网关启动级验证。
-- 下一步：重启 IDEA 后按 User、Video、Video Processor、Gateway 顺序启动；执行 `scripts/verify-video-e2e.ps1`，补充 MySQL、RabbitMQ、MinIO 和 FFmpeg 的现场证据。
+### 2026-08-23：补齐消费与创作者运营闭环
 
-### 2026-08-18：重建同仓库 SW-web 前端
-
-- 状态：`已完成并验证`
-- 本次目标：参考原始 `yh-fe` 的 Vue/Vite 结构，在 SW 同一 GitHub 仓库内恢复一个只服务简历主线的可演示前端。
-- 完成内容：新增 `SW-web`；保留公开/关注 Feed、点赞收藏评论、登录注册、预签名直传投稿、处理状态/失败列表和 AI 创作者助手；Vite 代理 `/user`、`/video`、`/ai` 到 Gateway `10086`；补充后端不可用时的演示数据模式；视觉统一为原创赛博朋克 HUD 风格。
-- 验证证据：Node.js `22.14.0`；`npm install` 无漏洞；`npm run build` 成功；本地 Vite `18888` 可访问；浏览器已验证 Feed、Creator Ops、AI Assistant 三个入口和标题高亮渲染；浏览器控制台无错误。
-- 当前风险/阻塞：完整真实前端联调需要同时启动 User、Video、AI 等 Java 服务；当前浏览器验证使用了后端不可用时的演示数据回退，尚未重新完成真实上传和 AI SSE 现场验收。
-- 已完成：前端已提交并推送到 `Yakuso234/SW` 的 `main` 分支，commit 为 `05430bb`。
-- 下一步：重启完整 Java 服务后，用真实账号验证登录、Feed、互动、投稿和 AI 流式响应；README 根据最新验证边界持续维护。
-
-### 2026-08-22：更新 GitHub README
-
-- 状态：`已完成并验证`
-- 本次目标：让仓库首页准确呈现当前后端主线、同仓库 `SW-web` 前端、启动方式、验证边界和面试资料入口。
-- 完成内容：补充前端演示范围、赛博朋克 HUD 视觉说明、Node.js 环境要求、真实服务与 Demo Data 的边界、Docker 隔离说明、原始前端参考地址和面试资料链接；修正重装系统后完整 E2E 尚待复验的口径。
-- 验证证据：`git diff --check` 无内容错误；README 改动仅涉及文档；当前工作区待提交 README 与本条记忆更新。
-- 当前风险/阻塞：无；完整多服务真实联调仍是项目后续验证项。
-- 下一步：提交并推送 README 更新。
-
-### 2026-08-23：校准 AI 前后端联调配置
-
-- 状态：`配置与回归已验证，待真实 Key 联调`
-- 本次目标：让本机 Qwen Key、AI Service、Gateway 和 `SW-web` 的 SSE 链路使用一致配置。
-- 完成内容：调用百炼兼容接口的 AI/MCP 配置统一使用 `QWEN_API_KEY`；AI Nacos 默认地址改为 SW 隔离端口 `28848`；AI Redis 默认地址改为 SW 隔离端口 `16379`；README 和演示 Runbook 补充 IDEA 密钥配置、启动顺序、登录要求及 SSE/Tool Calling 验证步骤。
-- 验证证据：`sw-dev` 的 MySQL、Redis、RabbitMQ、MinIO、Nacos 已按独立 Compose 项目启动；修正后的全部 Nacos YAML 已重新导入 `dev` 命名空间；JDK 21 下 `mvn -pl ai -am -DskipTests compile` 成功；`CreatorAssistantServiceImplTest` 与 `VideoProcessingToolsTest` 共 7 个测试全部通过；`SW-web` 的 `npm run build` 成功。当前系统用户环境中未检测到 `QWEN_API_KEY`，不会读取或记录密钥内容。
-- 新发现的面试价值：文档、Nacos 占位符和 IDEA 环境变量若命名不一致，会出现“已配置但服务读不到”的隐蔽故障；项目隔离还必须覆盖宿主机 Java 进程的连接地址。已写入面试问题清单第 53 题。
-- 当前风险/阻塞：真实模型调用必须由用户在 IDEA 本地配置 Key 后进行；未登录时 Gateway 不会向 AI 服务注入用户身份。
-- 下一步：用户在 AI Run Configuration 配置 Key 后启动 User、Video、Video Processor、AI、Gateway，再从前端验证标题建议与本人视频状态查询；验证完成后补充真实 SSE 现场证据。
-
-### 2026-08-23：恢复 IDEA Java 服务运行环境变量
-
-- 状态：`已完成并验证，待重启 IDEA 生效`
-- 本次目标：恢复重装后丢失的 Application 中间件凭据、固定端口和 Java/Maven/Node 用户环境。
-- 完成内容：从 Git 忽略的本机 `.env` 同步 MySQL、Redis、RabbitMQ、MinIO、Nacos、XXL-Job 变量；设置 `SW_NACOS_SERVER_ADDR=localhost:28848`、MySQL `13306`、Redis `16379`、RabbitMQ `25672`、MinIO `29000`；恢复 JDK 21、Maven、Node 用户 PATH；设置默认模型 `qwen-plus`。
-- 验证证据：在实际 Windows 用户上下文中逐项核验 23 个变量均已配置，检查过程只输出变量名和布尔状态、不输出敏感值；`QWEN_API_KEY` 明确保留为未配置，等待用户在 AI Run Configuration 本地填写。
-- 新发现的面试价值：沿用面试问题第 50、53 题——Compose `.env`、Windows 用户环境和 IDEA Run Configuration 是三个不同注入层；配置恢复必须验证实际宿主进程上下文，不能以文档记录或沙箱进程视图代替。
-- 当前风险/阻塞：已经打开的 IDEA 不会自动获得新变量，必须完整退出后重新打开；真实 AI 联调还缺本地 `QWEN_API_KEY`。
-- 下一步：重启 IDEA，确认 Project SDK/Maven Runner 为 JDK 21；各核心 Application 的 Program arguments/VM options 留空，启动后检查健康端点。
-
-### 2026-08-23：排查 Video Redis 主机解析失败与本地 Key 暴露
-
-- 状态：`Redis 配置与 Nacos 远端已验证，待 Application 启动验证；旧 Key 必须轮换`
-- 本次目标：定位 `Failed to resolve 'redis'`，同时处理诊断输出意外暴露本地 AI Key 的安全事件。
-- 完成内容：确认 Windows 用户变量为 `SW_REDIS_HOST=localhost`、`SW_REDIS_PORT=16379`；确认 Nacos `common-dev.yaml` 正确；继续沿 `RedissonConfig` 定位到 `video-dev.yaml` 的独立 `redisson.address` 仍硬编码 `redis://redis:6379`，已将 Video/Product/Live 的 Redisson 地址统一改为 `SW_REDIS_HOST/SW_REDIS_PORT` 占位符。
-- 验证证据：完整异常底层为 Redisson `UnknownHostException: redis`；实际用户变量和 Spring Data Redis 表达式均正确；代码检索确认 `RedissonConfig` 只读取 `redisson.address`；重新导入后 Nacos 远端 `video-dev.yaml` 已核验为 `redis://${SW_REDIS_HOST:localhost}:${SW_REDIS_PORT:16379}`；`.idea/workspace.xml` 被 `.gitignore` 排除且未被 Git 跟踪。
-- 新发现的面试价值：写入面试问题第 54、55 题。Git 忽略不等于运行时秘密不会进入诊断输出；同一中间件存在多个客户端时必须核对失败 Bean 的实际配置前缀。
-- 当前风险/阻塞：原 Qwen Key 已出现在诊断输出中，必须在百炼控制台立即撤销并生成新 Key；当前 IDEA 需完整退出并重新打开后再启动服务。
-- 下一步：用户轮换 Key 后重新启动 Video 验证 Redisson，再在 AI Run Configuration 中写入新 Key 并验证 AI SSE。
-
-- 补充修复：Nacos 导入脚本原先丢弃发布返回值并立即打印成功，已增加发布结果检查以及远端内容重试比对；本轮 10 份 YAML 均显示 `Imported and verified`。
-
-### 2026-08-23：强化 2077 式前端并恢复真实刷视频条件
-
-- 状态：`前端已完成并验证；真实 Feed 数据待重启 Processor 后生成`
-- 本次目标：增强 2077 式视觉，显式展示已有业务能力，并定位 Video 已启动但 Public Feed 为空的问题。
-- 完成内容：Feed 改为竖向沉浸式播放器，支持真实 MinIO URL、公开/关注切换、游标加载、搜索、点赞、收藏和评论；空数据与后端不可达分开表达，并提供明确标注的视觉 Demo；AI 增加标题、简介/标签、选题、发布节奏、处理进度和失败诊断六类快捷入口；视觉改为原创警示黄黑、神经青、故障红、巨大 77 编码和切角 HUD。修正成功/失败/性能 E2E 脚本的 `sw-dev-mysql-1` 容器名及 `25672/29000` 隔离端口。
-- 验证证据：Gateway/Video Public Feed 均返回 HTTP 200 和空 `items`；只读查询确认本机 `video` 表没有记录；前端两次 `npm run build` 成功；浏览器验证 Feed 空状态、Demo 竖向信号流、Creator Ops 和 AI 六类入口，控制台无 warning/error。
-- 新发现的面试价值：写入面试问题第 56 题。服务健康不等于业务数据就绪；Feed 的 `PUBLISHED + published_at` 条件必须通过完整异步链路产生。
-- 环境恢复：本机已安装 FFmpeg 9.0，并持久化 `SW_VIDEO_PROCESSING_FFMPEG_COMMAND`；当前运行中的 IDEA/Processor 尚未继承新变量，需要完整重启 IDEA。
-- 当前风险/阻塞：重启 Processor 前不要运行成功 E2E，否则任务会因找不到 FFmpeg 进入失败状态；真实 Feed 仍无本地公开视频。
-- 下一步：重启 IDEA 后运行 `scripts/verify-video-e2e.ps1` 生成真实 `PUBLISHED` 视频，再验证前端 `<video>` 播放、评论和互动。
-
-### 2026-08-23：完成真实视频播放与互动闭环
-
-- 状态：`已完成并验证`
-- 本次目标：解决公开视频无法播放、点赞评论不可用，并把前端调整为登录后才能访问具体业务页面。
-- 完成内容：为 `sw-dev` MinIO 幂等初始化五个私有 Bucket；视频访问改为 60 分钟预签名 GET；评论聚合对缺失/注销用户降级；公共对象工具对空头像 Key 返回 null；前端修正评论作者字段并增加独立身份门禁。
-- 验证证据：真实视频 `2091483955474989057` 达到 `PUBLISHED / SUCCEEDED / Outbox SUCCESS`；Gateway 与 Video Feed 均返回 1 条数据；签名媒体 Range 请求 HTTP 206；浏览器 `<video>` 为 `readyState=4`、时长 2 秒、无 error；JWT 注册登录、点赞、收藏、评论写入和回读业务码均为 1；浏览器点赞从 3 变 4，评论可见且作者为“路人甲”；注销用户评论降级为“已注销用户”；退出后业务页面重新隐藏。
-- 自动化证据：`InteractionServiceImplTest` 2/2、`AWSUtilsTest` 1/1 通过；`SW-web npm run build` 成功；浏览器控制台无 warning/error。
-- 新发现的面试价值：写入面试问题第 57—60 题，覆盖基础设施就绪与业务资源就绪、私有对象签名访问、跨服务聚合部分失败、空对象 Key 边界和前后端双层认证策略。
-- 当前运行状态：Docker 中间件和本轮终端测试服务正在运行；日常开发仍建议由 IDEA 使用 JDK 21 启动 Java 服务。
-- 下一步：提交本轮修复；如需现场演示，在 IDEA 重启 User、Video、Processor、Gateway 后运行同一 E2E 和浏览器流程。
-
-### 2026-08-23：补齐短视频消费与创作者运营最小闭环
-
-- 状态：`已完成并验证`
-- 本次目标：补齐视频/博主搜索、关注内容流、收藏读取、创作者作品管理、粉丝数据和播放趋势，并把展示口径落到真实服务数据。
-- 完成内容：`SW-web` 新增视频/创作者搜索、搜索自动回到 Feed 结果区、关注/取关、我的收藏、资料修改、已发布作品删除、粉丝/关注与互动指标、7 天趋势；视觉增强为原创的夜城数据终端语言（网格、城市剪影、霓虹状态、故障切角），不使用官方素材。Video 新增 `views` 和 `video_view_event`，用每日唯一约束记录观看；新增 `/me/view/{videoId}` 与 `/me/analytics`。接口返回本次是否新计数，前端只在新计数时更新。增加统计迁移脚本和关注流/播放统计 E2E 脚本。
-- 验证证据：`VideoServiceImplTest` 覆盖首次计数、重复不计数和 7 天补零，共 11 个该类测试通过；`SW-web npm run build` 通过。真实 E2E 新建创作者/关注者和 2 秒 MP4，得到 `FollowFeedContainsPublishedVideo=True`、`IsFollowed=True`、`FirstViewCounted=True`、`SecondViewDeduplicated=True`、`UniqueDailyViews=1`、`TrendDays=7`。浏览器验证 Creator Telemetry、7 根趋势柱、创作者搜索结果、收藏异步写入后在 `MY SAVED SIGNALS` 出现，控制台无 error。
-- 新发现的面试价值：写入面试问题第 61—63 题；特别区分短视频关注内容扇出和 Live RTMP 推流，且不把每日去重观看口径描述为生产级反刷量。
-- 当前风险/阻塞：本地统计表由幂等脚本初始化；生产应改用 Flyway/Liquibase 等版本化迁移。观看统计仍缺完播阈值、匿名用户策略、反作弊和离线数仓。Live RTMP、Product、Order、Chat、Admin 仍是存量/后续扩展，不纳入当前完成度。
-- 下一步：提交本轮代码和文档；日常使用由 IDEA 接管 Video 服务。现场演示先执行 `ensure-video-analytics-schema.ps1`，再运行 `verify-follow-feed-e2e.ps1`。
+- 完成视频/创作者搜索、关注 Feed、收藏读取、资料修改、作品删除、粉丝/关注数据和 7 天观看趋势。
+- 使用数据库唯一约束实现登录用户每日观看去重；真实 E2E 验证关注后发布进入 Feed、首次观看计数和同日重复去重。
 
 ### 2026-08-23：收敛仓库到短视频主线
 
-- 状态：`已完成并验证`
-- 本次目标：移除无法服务当前简历主线、且没有被核心模块依赖的存量模块，降低仓库认知负担。
-- 完成内容：删除 `product`、`order`、`live`、`chat`、`admin` 五个目录；根 Maven 聚合移除五个 module；删除四份实际存在的对应 Nacos 本地配置；Gateway 移除五条遗留路由及 `/admin/**` 白名单；MinIO 初始化收敛为 `video`、`user` 两个 Bucket。删除前检索确认主线 POM、Compose、`SW-web` 无模块引用，但发现本地 `gateway-dev.yaml` 尚保留路由，已同步清理。
-- 验证证据：Java 21 下根聚合 `mvn -DskipTests compile` 通过；`SW-web npm run build` 通过；Nacos `dev` 命名空间已重新导入 6 份核心配置，Gateway 远端内容与本地精简配置一致，4 个遗留 dataId 已删除；运行中 Gateway 对 `/product`、`/order`、`/live`、`/chat`、`/admin` 五条路径均返回 HTTP 404。
-- 新发现的面试价值：仓库收敛不是“删代码凑精简”，而是先做依赖/路由/部署面核验，再删除孤立域，保证运行边界和简历叙事一致。
-- 当前风险/阻塞：`.file/sql/yh.sql` 中的历史表与本机已有 MinIO Bucket 暂不删除，避免把模块收敛扩大为数据销毁；后续若需要重建空开发库，再单独设计版本化迁移。
-- 下一步：提交推送；后续若清理历史 SQL 表或已有对象存储数据，必须单独设计迁移与备份方案。
+- 删除 5 个无核心依赖的存量域和对应 Gateway/Nacos 配置，MinIO 初始化收敛为 `video`、`user` 两个私有 Bucket。
+- Java 21 根聚合编译、前端构建、Nacos 导入和旧路由 404 均已验证；历史 SQL 表与已有对象数据未做破坏性清理。
 
-### 2026-08-23：隔离外部恢复编排联调与自动恢复竞态
+### 2026-08-23：完成 DG—SW 真实恢复联调
 
-- 状态：`已完成并验证`
-- 本次目标：为 DG 等外部恢复执行器提供可重复的过期租约恢复验证，避免 Video 自动扫描抢先改变测试状态。
-- 完成内容：发现隔离的 `PROCESSING + 过期 lease` 测试任务会被 Video 定时恢复、Outbox 和 Processor 正常链路先消费；伪源对象随后导致 S3 404、任务变为 `REJECTED / FAILED`，不能归因于外部执行器。新增 `sw.video-processing.automatic-recovery-enabled`（默认 `true`）；仅本地设为 `false` 时暂停定时扫描，私有人工恢复接口不受影响。README 说明了参数和恢复方式。
-- 验证证据：新增单测断言关闭开关时定时方法返回 0，且不查询任务、不创建 Outbox；该测试类 5/5 通过。真实联调使用 `creatorId=161048163216523264`、`videoId=7321572775443310` 和可读 MinIO 源对象：DG 完成真实状态调查、LangGraph 提案、HITL 审批和私有恢复调用，SW 返回 `data=true`；后验数据库为 Video `PUBLISHED`、ProcessingTask `SUCCEEDED/retryCount=1/lease=null`，恢复与发布两条 Outbox 均为 `SUCCESS`。
-- 新发现的面试价值：已写入面试问题第 64 题。异步系统的故障演练必须隔离背景补偿器，否则无法把状态变化可靠归因到被测执行器；测试输入也必须是可读业务资源。
-- 当前风险/阻塞：核心联调无阻塞；SW 私有接口仍缺服务 Token/mTLS 入站校验，本次属于受控本地双项目集成，不是生产零信任证明。
-- 下一步：删除 Video IDEA Run Configuration 中临时的 `--sw.video-processing.automatic-recovery-enabled=false` 并重启，恢复默认定时补偿；提交并推送本轮 SW 代码与共享文档。
+- 发现自动租约扫描会抢先消费外部恢复测试，并且伪源对象会被 Processor 置为 S3 404 失败；增加默认开启、仅本地演练可关闭的自动恢复开关。
+- 定向测试 5/5 通过。使用真实 MinIO 源对象后，DG 完成调查、审批和恢复调用，SW Processor 最终发布成功。
+- 本轮代码与文档已提交并推送到 `origin/main`：`8098736 feat: isolate manual video recovery drills`。
 
-## 8. 更新模板
+### 2026-08-24：视频电商与个性化记忆增强（已完成本地验证）
+
+- 状态：本轮需求已实现并完成固定本地环境验证；真实 Qwen Embedding 因当前命令行环境没有 Key 未纳入通过证据。
+- 完成内容：新增视频商品、Redis Lua 秒杀预扣、优惠券、订单支付/取消/发货/收货/退款；新增 Redis 最近会话、MySQL 用户可管理记忆和 Milvus 语义召回；`SW-web` 新增视频商品卡、Commerce 工作台、我的订单/优惠券和 AI 记忆管理。
+- 验证证据：Java 21 编译/打包与 Vite 生产构建通过；商业 3 项、记忆/助手 5 项定向单测通过；真实 Milvus 1 项集成测试通过；HTTP E2E 验证商品、领券、下单、支付、发货、收货、退款以及记忆保存/列表/删除；浏览器验证登录门禁、Feed 商品卡、Commerce 和记忆面板，控制台无错误。
+- 并发证据：12 个隔离买家并发争抢 3 件库存，成功 3、拒绝 9、MySQL 3 单、Redis 剩余 0、无超卖，批次约 60.91 ms；严格标注为本机固定小样本功能回归。
+- 一致性修正：Redis 活动缓存重建时按 `总库存 - 已支付 - 待支付预占` 恢复，并重建已下单用户集合；下单事务回滚使用“释放用户资格 + 回补库存”，订单取消/超时则只在数据库提交后回补库存，保持数据库唯一约束与 Redis 语义一致。
+- 有价值故障：R2DBC `save` 将非空 Snowflake ID 的新对象误判为 UPDATE，改为显式 INSERT；Milvus 快速 Schema 要求主键 `id`，原写入 `memory_id` 导致真实集成失败，统一字段合同后通过。详见面试记录 068、069。
+- 当前边界：秒杀缓存冷启动尚缺分布式初始化锁/版本；Redis 提交后补偿尚无独立 Outbox；记忆没有自动抽取、重排和召回评测。
+- 交接状态：最终 Gateway/User/Video/AI Maven package、Video 全量 44/44、AI 常规套件、1 项真实 Milvus 集成测试和前端生产构建均通过；本轮临时 Java/Vite 进程已停止，10086/10088/10091/10094/5173 不再占用，`sw-dev` 中间件保留供 IDEA 使用。
+- 下一步：用户审核后再决定是否提交；生产化增强优先级为库存补偿 Outbox/对账、缓存初始化锁、真实 Qwen Embedding 回归与记忆效果数据集。
+
+## 6. 更新模板
 
 ```text
 ### YYYY-MM-DD：工作主题
 
-- 状态：已完成并验证 / 已实现待补证据 / 规划中 / 存量扩展 / 阻塞
-- 本次目标：
+- 状态：已完成并验证 / 已实现待补证据 / 规划中 / 阻塞
 - 完成内容：
 - 验证证据：
-- 新发现的面试价值：写入 SW-面试问题清单，或说明无
+- 面试价值：写入 SW-面试问题清单，或说明无
 - 当前风险/阻塞：
 - 下一步：
 ```

@@ -4,23 +4,18 @@
 
 ## 项目概览
 
-SW 是基于 Spring Cloud 的智能短视频平台。当前秋招改造主线聚焦用户、视频、异步处理、AI 运营助手与 MCP 业务工具；直播、商城、订单、聊天和管理端属于存量或后续扩展模块。
+SW 是基于 Spring Cloud 的智能短视频平台。秋招核心主线聚焦用户、视频、异步处理、内容互动与 AI 创作者助手；商城、订单、直播、聊天和管理端存量域已从当前工作树移除。
 
 主要模块：
 
 - `parent`：统一依赖版本管理。
 - `common`：公共能力，包括统一响应、异常、工具类、认证上下文、Redis、MyBatis Plus、Feign、Nacos、Sentinel 等。
 - `gateway`：API 网关，负责路由、认证过滤和文档聚合。
-- `admin`：管理后台服务，负责权限控制、内容审核和系统管理。
 - `user`：用户、登录注册、关注、地址等。
 - `video`：短视频、互动、评论、收藏、标签、搜索、审核等。
 - `video-processor`：视频转码与处理服务。
-- `product`：商品、SKU、库存、购物车等。
-- `order`：下单、订单状态、支付、统计等。
-- `live`：直播间、直播商品、实时互动等。
-- `chat`：会话、实时消息、WebSocket、MQ 等。
 - `ai`：智能对话、Spring AI、响应式接口等。
-- `mcp-server`：MCP 工具服务，通过 Feign 调用其他服务。
+- `mcp-server`：探索性工具适配模块，不属于当前完成主线。
 
 ## 技术栈
 
@@ -65,11 +60,8 @@ SW 是基于 Spring Cloud 的智能短视频平台。当前秋招改造主线聚
 
 部分模块还有额外的子包约定，编写或查找代码时优先按这些目录理解：
 
-- `admin`：在通用的 `controller`、`service`、`mapper`、`entity`、`request`、`response` 之外，还包含 `interceptor`、`filter`、`aop`、`annotations`、`init`、`mapstruct`、`utils`。
 - `video-processor`：主要包含 `consumer`、`config`、`constant`、`entity`、`mapper`、`serivce` / `serivce.impl`，其中目录名就是 `serivce`。
-- `live`：除通用分层外，还会使用 `repository`、`document`、`strategy`、`job`、`websocket`。
 - `ai`：除通用分层外，还会使用 `cache`、`filter`、`pool`、`repository`、`websocket`。
-- `chat`：除通用分层外，还会使用 `websocket`，其下常见 `controller`、`inter`、`pojo`、`_enum` 子包。
 - `mcp-server`：工具类通常直接放在根包下，作为 MCP tool provider 使用。
 
 ## 开发原则
@@ -90,6 +82,13 @@ SW 是基于 Spring Cloud 的智能短视频平台。当前秋招改造主线聚
     - 消息体放入 `pojo.mq`
     - exchange / queue / routing key 放入 `constant`
     - 消费者需考虑幂等、重复消费和异常重试
-- 涉及缓存、库存、支付、订单、分布式锁等高并发链路时，注意幂等性、事务边界和并发安全。
+- 涉及缓存、互动计数、任务恢复、Feed 扇出或分布式锁时，注意幂等性、事务边界和并发安全。
 - 涉及 AI 或响应式接口时，避免在 Reactor 链路中直接执行阻塞调用。
 - 注释请使用中文。
+
+## 项目记忆与验证
+
+- 进度不确定时，先阅读 `docs/SW-工作流程副记忆.md`，再阅读 `docs/SW-项目记忆.md`。
+- 开发中出现有面试价值的故障、取舍或验证结论时，更新 `docs/SW-面试问题清单.md`。
+- “已完成”必须对应代码、测试、脚本、日志、指标或现场联调证据；生产化增强项与当前缺陷分开记录。
+- Docker Compose 只运行 `sw-dev` 隔离中间件，Java 服务由 IDEA 使用 JDK 21 启动。

@@ -4,9 +4,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectName = 'sw-dev'
-$baseServices = @('mysql', 'redis', 'rabbitmq', 'minio', 'nacos')
+$baseServices = @('mysql', 'redis', 'rabbitmq', 'minio', 'milvus-etcd', 'milvus', 'nacos')
 
- $dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
+$dockerCommand = Get-Command docker -ErrorAction SilentlyContinue
 if (-not $dockerCommand) {
     $dockerBin = Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin'
     $dockerPath = Join-Path $dockerBin 'docker.exe'

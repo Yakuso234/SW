@@ -40,6 +40,31 @@ services:
     volumes:
       - minio-data:/data
 
+  milvus-etcd:
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command: etcd --advertise-client-urls=http://127.0.0.1:2379 --listen-client-urls=http://0.0.0.0:2379 --data-dir=/etcd
+    volumes:
+      - milvus-etcd-data:/etcd
+
+  milvus:
+    image: milvusdb/milvus:v2.4.20
+    command: ["milvus", "run", "standalone"]
+    depends_on: [milvus-etcd, minio]
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:?请在 .env 中设置 MINIO_ACCESS_KEY}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:?请在 .env 中设置 MINIO_SECRET_KEY}
+    ports:
+      - "${SW_MILVUS_PORT:-19530}:19530"
+    volumes:
+      - milvus-data:/var/lib/milvus
+
   nacos:
     image: nacos/nacos-server:v2.5.0
     environment:
@@ -105,6 +130,8 @@ services:
       SW_RABBITMQ_PORT: 5672
       SW_MINIO_HOST: minio
       SW_MINIO_PORT: 9000
+      SW_MILVUS_HOST: milvus
+      SW_MILVUS_PORT: 19530
       SW_NACOS_HOST: nacos
       SW_NACOS_PORT: 8848
       SW_NACOS_SERVER_ADDR: nacos:8848
@@ -148,3 +175,5 @@ volumes:
   minio-data:
   prometheus-data:
   grafana-data:
+  milvus-etcd-data:
+  milvus-data:

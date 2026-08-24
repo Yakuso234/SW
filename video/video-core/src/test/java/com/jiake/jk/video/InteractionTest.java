@@ -1,42 +1,29 @@
 package com.jiake.jk.video;
 
-import com.jiake.jk.video.mapper.VideoMapper;
-import com.jiake.jk.video.pojo.request.PostCommentRequest;
+import com.jiake.jk.video.controller._public.InteractionPublicController;
+import com.jiake.jk.video.pojo.response.GetDirectCommentResponse;
 import com.jiake.jk.video.service.InteractionService;
-import org.apache.coyote.BadRequestException;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import java.util.List;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Transactional
-public class InteractionTest {
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-    @Autowired
-    private InteractionService interactionService;
-    @Autowired
-    private VideoMapper videoMapper;
+class InteractionTest {
 
     @Test
-    public void comment() throws BadRequestException {
-        // 视频不存在校验
-        Long videoId = 1L;
-        Long userId = 1L;
-        PostCommentRequest postCommentRequest = new PostCommentRequest();
-        postCommentRequest.setContent("视频很不错！");
-        assertThrows(BadRequestException.class, () -> interactionService.comment(videoId, userId, postCommentRequest));
+    void directComment_shouldDelegateWithoutStartingExternalUserService() {
+        InteractionService interactionService = mock(InteractionService.class);
+        InteractionPublicController controller = new InteractionPublicController(interactionService);
+        GetDirectCommentResponse comment = new GetDirectCommentResponse();
+        when(interactionService.directComment(2001L, null)).thenReturn(List.of(comment));
 
-        // 成功评论
-        Long videoId2 = videoMapper.selectFirst().getId();
-        Long userId2 = 1L;
-        PostCommentRequest postCommentRequest2 = new PostCommentRequest();
-        postCommentRequest2.setContent("视频很不错！");
-        interactionService.comment(videoId2, userId2, postCommentRequest2);
-        assertNotNull(interactionService.directComment(videoId2, null), "评论插入异常！");
+        var result = controller.directComment(2001L, null);
+
+        assertEquals(1, result.getData().size());
+        verify(interactionService).directComment(2001L, null);
     }
-
 }

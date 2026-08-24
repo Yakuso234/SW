@@ -1,8 +1,8 @@
 # SW 智能短视频微服务平台
 
-SW 是一个面向创作者与内容消费者场景的 Java 微服务实践项目，当前主线聚焦“视频可靠异步处理、内容消费互动和 AI 创作者运营助手”。项目使用 Java 21、Spring Boot、Spring Cloud、RabbitMQ、Redis、MySQL、MinIO 与 Spring AI，并配套同仓库 Vue/Vite 前端 `SW-web`。
+SW 是一个面向创作者与内容消费者场景的 Java 微服务实践项目，当前主线聚焦“视频可靠异步处理、内容消费互动、轻量内容电商和 AI 创作者运营助手”。项目使用 Java 21、Spring Boot、Spring Cloud、RabbitMQ、Redis、MySQL、MinIO、Milvus 与 Spring AI，并配套同仓库 Vue/Vite 前端 `SW-web`。
 
-> 当前仓库处于持续重构阶段。README 只描述已经验证的能力和明确的开发目标，不使用尚未复现的性能数据。
+> 秋招核心主线已经完成并验证；后续只进行生产化增强。README 仅描述有代码、测试、脚本或现场联调证据的能力。
 
 ## 核心业务链路
 
@@ -18,7 +18,9 @@ flowchart LR
     P --> F["FFmpeg 转码 / 抽帧"]
     P --> V
     V --> R["Redis 关注流"]
+    V --> C["视频商品 / Lua 秒杀 / 订单售后"]
     G --> A["AI Service"]
+    A --> K[("MySQL 记忆 / Milvus 索引")]
     A --> T["Feign 业务工具"]
     T --> V
 ```
@@ -30,7 +32,9 @@ flowchart LR
   -> Outbox 可靠投递处理任务
   -> Processor 转码、抽帧、重试并回写状态
   -> 审核通过后发布到关注流
+  -> 视频挂载商品并完成秒杀、履约和售后
   -> AI 助手查询进度、诊断失败并给出运营建议
+  -> 用户主动维护可删除的个性化偏好
 ```
 
 ## 当前状态
@@ -39,25 +43,19 @@ flowchart LR
 
 - 完成项目目录、Java 包名和 Maven 坐标统一，当前根包为 `com.jiake.jk`。
 - 核心模块已在 Java 21 下编译通过。
-- Docker 本地基础环境可运行：MySQL、Redis、RabbitMQ、MinIO、Nacos。
+- Docker 本地基础环境可运行：MySQL、Redis、RabbitMQ、MinIO、Nacos、Milvus。
 - Gateway、User、Video、Video Processor 可通过 IDEA 连接本地中间件运行。
 - 视频可靠异步链路已具备完整代码、测试和本地 E2E 脚本：预签名上传、MinIO PUT、创建视频、Outbox、RabbitMQ、Processor、FFmpeg 转码/抽帧、处理结果回写与关注流发布。
 - AI 创作者助手已完成 SSE 流式响应和两个权限受控的只读工具：视频处理状态查询、失败诊断；调用链支持 TraceId 追踪到 Video Service。
+- 已完成 Video 域内的轻量内容电商闭环：自己的已发布视频挂商品、Redis Lua 原子秒杀、优惠券、订单支付/取消/发货/收货与退款审核。12 个隔离买家并发争抢 3 件库存的固定场景中，3 单成功、9 单拒绝、MySQL 3 单且 Redis 库存为 0，无超卖；该结果不是生产 TPS。
+- 创作者助手新增低成本三层记忆：Redis 保存有界最近会话，MySQL 保存用户主动确认且可查看/删除的长期偏好，Milvus 作为按用户隔离、可重建的语义索引；事实类工具查询绕过偏好记忆，向量不可用时回退 MySQL。
 - 已完成公开时间 Feed、关注 Feed、点赞、收藏、评论与关注/取关接口；点赞/收藏事件以 `eventId` 消费去重，评论计数通过 Outbox 异步聚合。关注者发布到关注流、首次观看计数与同日重复观看去重已由真实 E2E 验证。
 - 同仓库前端 `SW-web` 已按原始 `yh-fe` 的 Vue/Vite 结构重构，收敛为竖向公开视频/关注 Feed、播放、视频/创作者搜索、互动、收藏列表、创作者资料/作品管理、真实粉丝与互动统计、7 天观看趋势、可靠投稿工作台、处理状态/失败诊断和 AI 助手；已通过生产构建、浏览器页面和控制台检查，视觉采用原创的 2077 式赛博朋克 HUD 风格，不包含官方 Logo、角色原画或游戏素材。
-- 重装系统后已重新验证 Docker 中间件、Nacos 配置导入、Java 21 服务、真实视频 E2E、私有 MinIO 签名播放、JWT 互动和前端浏览器流程；AI 模型链路仍需要本机有效的 `QWEN_API_KEY`。
+- 重装系统后已重新验证 Docker 中间件、Nacos 配置导入、Java 21 服务、真实视频 E2E、私有 MinIO 签名播放、JWT 互动、前端浏览器流程和本地 Qwen 接入；模型密钥始终只在本机运行环境中配置。
+- 已完成 DG/FlowPilot 与 SW 的真实恢复联调：DG 调查过期任务、生成提案并等待人工审批，批准后调用 SW 私有恢复接口；SW 最终达到 `PUBLISHED / SUCCEEDED`，两条 Outbox 投递成功。
 - 固定开发机曾完成 1 次预热和 5 次串行端到端样本，P50 为 3500 ms、P95 为 3506 ms；它仅是历史同机回归基线，非生产吞吐结论。
 
-后续工程化工作：
-
-- 将已有真实链路沉淀为自动化集成测试、可复现故障演练与前后端联调脚本。
-- 继续积累固定环境下的基线和故障样本，并与后续改动进行对比。
-- 仅在真实运营需求明确后，再评估规则 RAG 或更多只读工具；当前不把 MCP、复杂记忆或多 Agent 作为已完成能力。
-
-尚未作为完成能力对外描述：
-
-- 商城、订单、直播、聊天和后台管理等存量域已在本次重构中主动移除；仓库只保留可演示、可验证的短视频主链路与 AI 扩展。
-- 不把该固定环境基线表述为生产 TPS、并发上限或通用性能结论。
+能力边界：原有独立商城/订单、直播、聊天和后台管理存量域已主动移除；当前商业能力是 Video 域内为短视频场景新建的轻量子域，不是通用电商平台。`mcp-server` 是探索性适配模块，不属于当前完成能力；固定环境基线不代表生产 TPS、并发上限或 SLA；SW 私有接口尚未实现服务 Token/mTLS，DG—SW 联调不等同于生产零信任。本轮已验证真实 Milvus，但命令行环境没有 Qwen Key，未把真实 Embedding 请求列为通过证据。
 
 ## 前端演示范围
 
@@ -68,6 +66,7 @@ flowchart LR
 | `SIGNAL // FEED` | 竖向公开视频/关注 Feed、视频播放、游标加载、视频/创作者搜索、关注、点赞、收藏、评论 |
 | `CREATOR // OPS` | 预签名直传、MinIO 上传、投稿提交、资料修改、已发布作品删除、收藏列表、粉丝/关注与互动数据、7 天观看趋势、处理状态和失败列表 |
 | `AI // OPS ASSISTANT` | SSE 流式对话、标题/简介/标签、选题、发布节奏、处理状态查询和失败诊断 |
+| `MARKET // COMMERCE` | 视频商品、限时秒杀、优惠券、我的订单/售后，以及创作者履约与退款审核 |
 
 前端使用原创 2077 式赛博朋克 HUD 视觉系统：警示黄黑、神经链路青、红色故障层、扫描线、网格、终端标签、巨大编码和切角面板。后端不可用或真实 Feed 暂无数据时，可以手动进入明确标注为 `DEMO DATA / VISUAL PREVIEW ONLY` 的页面走查；登录、互动、投稿、真实播放和 AI 请求仍要求真实后端服务，避免把演示数据当成链路证据。
 
@@ -104,6 +103,12 @@ flowchart LR
 
 每条简历亮点都需要对应代码、测试、指标、故障案例、架构图和演示步骤。
 
+### 5. 视频商业闭环与个性化记忆
+
+- 秒杀入口通过 Redis Lua 一次性校验活动时间、库存和用户资格，MySQL 唯一约束做最终一人一单兜底；缓存按已支付销量和待支付预占重建。
+- 下单事务回滚与订单取消使用不同补偿语义，取消/超时只在数据库提交后回补库存，避免缓存先行造成超卖窗口。
+- 长期记忆由用户主动保存和删除，MySQL 是事实源、Milvus 是派生索引；检索强制按当前用户过滤，不把偏好上下文当作系统指令。
+
 可直接按 [演示 Runbook](docs/DEMO_RUNBOOK.md) 在本机复现“成功上传、失败诊断、死信恢复、指标查看”四段证据链。
 
 可按 [简历项目说明](docs/SW-简历项目说明.md) 查看已验证的技术边界、量化口径和面试可追问事实。
@@ -114,16 +119,16 @@ flowchart LR
 
 | 模块 | 当前定位 |
 |---|---|
-| `gateway` | 统一入口、鉴权、路由与后续限流 |
+| `gateway` | 统一入口、鉴权、路由、私有路径阻断与 Redis Lua 限流 |
 | `user` | 用户身份、资料和关注关系 |
-| `video` | 上传任务、视频状态、Outbox、发布与关注流 |
+| `video` | 上传任务、视频状态、Outbox、发布/关注流，以及轻量视频商品与订单售后子域 |
 | `video-processor` | RabbitMQ 消费、FFmpeg 处理、重试与结果回写 |
-| `ai` | SSE 对话编排、受权限约束的状态查询与失败诊断 |
+| `ai` | SSE 对话编排、受权限约束的状态查询/失败诊断，以及 Redis/MySQL/Milvus 分层记忆 |
 | `mcp-server` | 预留的工具适配模块，不属于当前完成能力 |
 | `common` | 统一响应、异常、鉴权上下文和基础组件 |
 | `SW-web` | Vue/Vite 前端，收敛展示内容消费、可靠发布和 AI 助手主线 |
 
-其他模块保留为后续扩展，不作为当前核心完成度依据。
+已移除的存量域不再作为模块或完成度依据。
 
 ## 本地运行
 
@@ -145,10 +150,10 @@ Copy-Item .env.example .env
 真实 `.env` 已被 Git 忽略，不得提交到仓库。
 
 ```powershell
-docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos
+docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos milvus-etcd milvus
 ```
 
-SW 使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷不会与其他项目复用；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`。如有端口占用，只需在 `.env` 修改对应的 `SW_*_PORT`，不要改容器内部端口。
+SW 使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷不会与其他项目复用；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`、Milvus `19530`。如有端口占用，只需在 `.env` 修改对应的 `SW_*_PORT`，不要改容器内部端口。
 
 也可以使用脚本启动，脚本固定使用独立的 `sw-dev` Compose 项目名：
 
@@ -234,6 +239,17 @@ AI 前后端联调需要先在前端完成注册或登录，因为 Gateway 会�
 
 该脚本创建临时创作者与关注者：关注者先订阅，创作者发布后必须出现在其关注 Feed；随后对同一视频连续上报两次播放，脚本断言首次返回 `true`、第二次返回 `false`，创作者总观看为 1 且返回 7 天趋势。观看口径是“同一登录用户对同一视频每天最多一次”，用于本地演示，不代表生产完播率、反刷量或数据仓库统计。
 
+视频商业与个性化记忆首次运行需要执行两份增量迁移，然后可运行闭环和并发脚本：
+
+```powershell
+Get-Content .\scripts\migrations\V20260824__video_commerce.sql | docker compose --project-name sw-dev exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+Get-Content .\scripts\migrations\V20260824__creator_memory.sql | docker compose --project-name sw-dev exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+.\scripts\e2e-commerce-memory.ps1
+.\scripts\e2e-flash-sale-concurrency.ps1 -BuyerCount 12 -Stock 3
+```
+
+第一个脚本使用隔离账号验证商品、领券、下单、重复下单拒绝、支付、履约、退款和记忆增删；第二个脚本断言成功订单数、MySQL 订单数与活动库存一致。脚本会写入明确隔离的本地测试数据，不应连接生产库；并发耗时只用于同机回归，不作为容量结论。真实 Qwen Embedding 验证仍要求 AI 进程本地注入 `QWEN_API_KEY`。
+
 失败链路验收（本地开发环境）：
 
 ```powershell
@@ -311,13 +327,6 @@ Prometheus 位于 `http://localhost:9090`，Grafana 位于 `http://localhost:300
 
 本地开发时只用 Docker 运行中间件，Java 服务由 IDEA 启动，避免端口冲突。
 
-## 近期里程碑
-
-- 2026-08-23：视频可靠异步处理 v1、E2E 演示与 Prometheus/Grafana 现场证据。
-- 2026-09-07：AI 创作者助手、服务边界、TraceId 与前后端联调演示。
-- 2026-09-16：测试、监控、故障演练、压测与 CI 远端验收收口。
-- 2026-10-07：双项目作品集与面试材料阶段性收口；之后继续迭代。
-
 ## 项目说明
 
 本项目在原作者允许的基础上参考[原项目](https://github.com/Yi-Xuan-i/YH)进行重构与扩展；前端重构参考[原始 yh-fe](https://gitee.com/YXXHYH/yh-fe)，当前前后端已合并到本仓库维护。
@@ -328,3 +337,6 @@ Prometheus 位于 `http://localhost:9090`，Grafana 位于 `http://localhost:300
 - [工作流程副记忆](docs/SW-工作流程副记忆.md)：当前进度、验证证据、风险和下一步。
 - [架构理解文档](docs/SW-面试架构理解.md)：适合面试前快速复习整体架构。
 - [面试问题清单](docs/SW-面试问题清单.md)：只记录开发中产生的高价值问题、取舍和故障复盘。
+- [简历项目说明](docs/SW-简历项目说明.md)：可直接使用的项目描述、指标口径和投递取舍。
+- [SW 后端简历初稿](docs/2026秋招-SW后端简历初稿.md)：包含个人信息占位的单页投递模板。
+- [本地演示 Runbook](docs/DEMO_RUNBOOK.md)：真实发布、失败、恢复、观测和 DG—SW 联调步骤。

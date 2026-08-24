@@ -1,6 +1,6 @@
 # SW 本地演示 Runbook
 
-本文只覆盖简历主线：可靠视频异步处理、内容消费互动、受限 AI 创作工具与可观测性。执行前请确认仅在本机开发环境操作；脚本会产生本地测试数据，但不输出密码或模型密钥。
+本文只覆盖简历主线：可靠视频异步处理、内容消费互动、轻量视频商业闭环、受限 AI 创作工具与可观测性。执行前请确认仅在本机开发环境操作；脚本会产生本地测试数据，但不输出密码或模型密钥。
 
 ## 0. 演示边界
 
@@ -13,11 +13,11 @@
 启动 Docker 基础设施：
 
 ```powershell
-docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos
+docker compose --project-name sw-dev up -d mysql redis rabbitmq minio nacos milvus-etcd milvus
 docker compose --project-name sw-dev --profile observability up -d prometheus grafana
 ```
 
-SW 中间件使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷与其他项目隔离；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`。
+SW 中间件使用独立的 `sw-dev` Compose 项目名，容器、网络和数据卷与其他项目隔离；宿主机端口为 MySQL `13306`、Redis `16379`、RabbitMQ `25672/25673`、MinIO `29000/29001`、Nacos `28848/29848`、Milvus `19530`。
 
 在 IDEA 依次启动：User `10088`、Video `10091`、Video Processor `10092`、AI `10094`、Gateway `10086`。AI 仅在其 Run Configuration 已配置本地 `QWEN_API_KEY` 时启动；Key 使用阿里云百炼 API Key，不写入配置文件。AI 默认连接 SW 项目隔离端口 Nacos `28848`、MySQL `13306`、Redis `16379`。
 
@@ -29,9 +29,16 @@ npm install
 npm run dev
 ```
 
-访问 `http://127.0.0.1:18888`，演示公开 Feed、互动、可靠投稿工作台和 AI 创作者助手。
+访问 `http://127.0.0.1:18888`，演示公开 Feed、互动、可靠投稿工作台、商业中心和 AI 创作者助手。
 
 AI 联调时先注册或登录，再进入 `AI // OPS ASSISTANT`：先询问标题建议验证 SSE；再使用当前账号名下的真实 `videoId` 询问处理状态或失败原因，验证权限受控的只读工具调用。未登录请求不会获得用户身份，不能作为 AI 链路成功证据。
+
+首次演示商业和长期记忆前执行：
+
+```powershell
+Get-Content .\scripts\migrations\V20260824__video_commerce.sql | docker compose --project-name sw-dev exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+Get-Content .\scripts\migrations\V20260824__creator_memory.sql | docker compose --project-name sw-dev exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+```
 
 核验重点：
 
@@ -76,6 +83,17 @@ Prometheus Targets 中 Gateway、Video、Video Processor 应为 `UP`；启动 AI
 
 该脚本会提交内容故意无效的隔离媒体。成功条件是状态自然进入 `REJECTED / FAILED / SUCCESS`，并可在 Prometheus 查看 `sw_video_transcoding_failures_total` 增加。若 AI `10094` 已启动，可由该视频所属创作者在助手页面询问失败原因；工具只返回可操作的摘要与建议，不泄露对象路径、FFmpeg 命令或原始异常。
 
+## 3.5 视频商业与个性化记忆
+
+```powershell
+.\scripts\e2e-commerce-memory.ps1
+.\scripts\e2e-flash-sale-concurrency.ps1 -BuyerCount 12 -Stock 3
+```
+
+第一段要求返回商品可见、重复订单被拒绝、优惠券抵扣、订单最终 `REFUNDED`、记忆保存/列表/删除成功。第二段固定用 12 个隔离买家争抢 3 件库存，要求成功 3、拒绝 9、MySQL 3 单、Redis 库存 0、`Oversold=False`。耗时只用于当前机器的功能回归，不能换算或宣传为生产 TPS。
+
+页面演示顺序：Feed 查看视频侧边商品卡 -> `MARKET 77` 创建或选择商品 -> 买家查看订单/优惠券/售后 -> 创作者查看履约和退款审核 -> AI 页面主动保存并删除一条长期偏好。MySQL 是记忆事实源，Milvus 只是可重建索引；没有本地 Qwen Key 时只演示 CRUD 和降级，不声称真实 Embedding 已通过。
+
 ## 4. 下游故障：延迟重试与审计式恢复
 
 该段用于解释可靠性边界，不建议在常规页面联调时频繁触发。
@@ -100,11 +118,17 @@ POST /video/api/private/follow-feed/operations/recover-dead?batchSize=10
 
 Grafana 看板 `SW / SW 核心链路可观测性` 可展示：网关限流拒绝、Outbox 失败、转码耗时与失败、关注流重试/最终死信/人工恢复。AI 工具调用可在 Prometheus 查询 `sw_ai_creator_assistant_tool_invocations_total`，只按工具名计数，不记录用户、视频或提示词。优先展示与本次演练对应的非零指标；没有样本时如实说明，不制造曲线。
 
-## 6. 面试讲解顺序（约 6 分钟）
+## 6. 可选：DG—SW 受控恢复联调
 
-1. 业务闭环：创作者上传并可靠发布，消费者刷流、互动、关注，创作者可查询处理状态。
+该演练只用于本地隔离数据。先为 Video Service 临时增加 `--sw.video-processing.automatic-recovery-enabled=false` 并重启，避免自动扫描抢先恢复；测试任务必须是 `PROCESSING + 过期 lease`，并指向真实可读的 MinIO 源对象。DG 完成调查、提案和人工审批后，调用 Video 私有 `recover-expired` 接口，再回查 Video、ProcessingTask 和 Outbox 三类状态。
+
+成功证据应同时包含：DG ExecutionRecord `succeeded/attempts=1`，以及 SW 的 `PUBLISHED / SUCCEEDED / Outbox SUCCESS`。演练结束立即删除临时参数并重启 Video，恢复默认自动补偿。不得使用重要业务数据，也不得把该本地联调描述成服务间 Token/mTLS 已完成。
+
+## 7. 面试讲解顺序（约 6 分钟）
+
+1. 业务闭环：创作者上传并可靠发布，消费者刷流、互动、关注，并从视频商品卡进入秒杀、订单和售后。
 2. 一致性方案：业务状态与 Outbox 同事务；点赞/收藏以事件 ID 去重，评论异步聚合计数。
 3. 故障边界：处理回写有租约恢复；关注流下游故障有 Broker 延迟重试与最终 DLQ。
 4. 恢复治理：DLQ 恢复需审计和补偿 Outbox，不能直接重放旧消息。
 5. 证据：核心回归、E2E 成功/失败脚本、互动接口验收、Prometheus/Grafana、固定环境延迟基线。
-6. AI 定位：仅为创作者提供有权限约束的状态查询和失败诊断，不把它包装成多 Agent 系统。
+6. AI 定位：仅为创作者提供有权限约束的状态查询、失败诊断和用户主动维护的分层偏好记忆，不把它包装成多 Agent 系统。

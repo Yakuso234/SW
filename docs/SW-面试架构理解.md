@@ -2,7 +2,7 @@
 
 ## 1. 一句话介绍
 
-SW 是我在开源原项目基础上、经作者允许后重构和扩展的短视频微服务平台。我把重点放在“创作者可靠发布到消费者互动”的闭环：视频通过对象存储直传，业务提交后由 Outbox 和 RabbitMQ 驱动异步转码、抽帧和状态回写；发布后通过关注 Feed 让消费者刷流和互动，并用 Spring AI 提供权限受控的创作者状态查询和失败诊断。
+SW 是我在开源原项目基础上、经作者允许后重构和扩展的短视频微服务平台。我把重点放在“创作者可靠发布到消费者互动与轻量变现”的闭环：视频通过对象存储直传，业务提交后由 Outbox 和 RabbitMQ 驱动异步转码、抽帧和状态回写；发布后通过关注 Feed 让消费者刷流互动，可从视频商品卡进入秒杀、订单和售后；Spring AI 提供权限受控的业务查询与可管理个性化记忆。
 
 ## 2. 面试时先讲业务闭环
 
@@ -22,7 +22,10 @@ flowchart LR
     Processor --> Video
     Video --> Feed[Published Feed / Follow Feed Inbox]
     Feed --> Consumer[内容消费者]
+    Video --> Commerce[Video Commerce / Redis Lua]
+    Commerce --> Consumer
     AI --> VideoPrivate[Video Private Feign API]
+    AI --> Memory[(Redis Session / MySQL Memory / Milvus)]
 ```
 
 推荐讲解顺序：
@@ -35,6 +38,7 @@ flowchart LR
 6. 发布事件继续经过 Outbox，关注流消费者按粉丝分页写入 `video_feed_inbox`；公开 Feed 和关注 Feed 使用游标分页。
 7. 点赞、收藏和评论采用快速响应与异步计数分离，消费端使用事件幂等或评论幂等表避免重复累加。
 8. AI 助手只对当前创作者可访问的视频调用只读工具，不代替业务服务写数据。
+9. 创作者可给自己的已发布视频挂商品；买家经 Redis Lua 秒杀后进入订单、履约和售后，用户主动保存的 AI 偏好可随时查看或删除。
 
 ## 3. 模块和职责
 
@@ -44,12 +48,12 @@ flowchart LR
 | `common` | `Result`、异常、JWT、用户上下文、TraceId、Redisson、MinIO/S3、动态线程池等 | 公共能力 |
 | `gateway` | Nacos 路由、JWT 鉴权、私有路径阻断、限流、WebSocket 握手 | 入口安全和流量治理 |
 | `user` | 用户、登录、资料、关注关系、粉丝分页和内部 Feign 接口 | 身份与社交图谱 |
-| `video` | 视频、上传、处理任务、Outbox、Feed、互动、评论、标签 | 业务主服务 |
+| `video` | 视频、上传、处理任务、Outbox、Feed、互动、评论、标签、轻量内容电商 | 业务主服务 |
 | `video-processor` | MQ 消费、FFmpeg、MinIO 产物处理、互动批处理 | 异步计算服务 |
-| `ai` | WebFlux、SSE、Spring AI、创作者工具、R2DBC/Redis 会话 | 受控 AI 能力 |
-| `mcp-server` | MCP Tool Provider、Milvus 向量记忆/商城检索等扩展 | 后续 AI/MCP 方向 |
+| `ai` | WebFlux、SSE、Spring AI、创作者工具、R2DBC/Redis 会话、MySQL/Milvus 记忆 | 受控 AI 能力 |
+| `mcp-server` | 探索性工具适配代码 | 非当前完成能力，面试不作为主线 |
 
-> 重构时已主动移除与短视频主线无依赖的商城、订单、直播、聊天和后台管理模块，并清理 Gateway 路由与本地 Nacos 配置。这样仓库边界与简历叙事一致：保留下来的代码都能对应可靠发布、内容消费或受控 AI 能力。
+> 重构时已主动移除与短视频主线无依赖的通用商城、订单、直播、聊天和后台管理存量模块，并清理 Gateway 路由与本地 Nacos 配置。之后新增的商业能力是 Video 域内围绕视频挂载商品的轻量子域，不恢复原通用电商骨架。
 
 服务内部大多按 `controller -> service -> mapper` 分层；跨服务通过 `*-feign` 和 `*-pojo` 共享明确 DTO，公开接口与 `/private` 内部接口分开。
 
@@ -156,6 +160,12 @@ PROCESSING video -> PENDING_REVIEW
 
 评论正文和根评论关系先在本地事务中落库，同时写入评论可靠 Outbox。消费者以 `comment_id` 写入 `video_comment_event_consumption`，重复消息直接跳过，然后批量更新视频评论数和根评论回复数。
 
+### 视频商品和秒杀
+
+商品只能挂在当前创作者自己的 `PUBLISHED` 视频上。活动开始后，请求先用一段 Redis Lua 原子校验时间窗、剩余库存和用户资格，再进入 MySQL 事务创建待支付订单；数据库的活动买家唯一约束是一人一单的最终边界。
+
+Redis 不是订单事实源。缓存丢失时按 `活动总库存 - 已支付销量 - 待支付订单数` 重建，并恢复已参加买家集合。事务回滚与订单取消含义不同：前者表示订单不存在，库存和买家资格都撤销；后者表示订单事实存在，只在事务提交后回补库存并保留资格。当前提交后 Redis 补偿没有独立 Outbox，因此生产化仍需库存对账和补偿任务。
+
 ## 8. Gateway、认证和可观测性
 
 ### Gateway
@@ -183,7 +193,9 @@ AI Service 使用 WebFlux 和 SSE 输出流式结果，通过 Spring AI 调用 Q
 
 工具只读、不发布、不删除、不修改视频；服务端失败摘要是事实来源，未匹配时明确回答原因未知。模型超时和异常会降级为 SSE 错误事件。
 
-因此准确定位是“微服务中的受控 AI 辅助能力”，不是完整的自主 Agent 平台。`mcp-server` 已有向量记忆和商城检索工具，可作为后续把工具协议化、做 RAG 和 Python Agent 编排的扩展基础。
+个性化记忆按生命周期拆为三层：Redis 只保留限制轮数和 TTL 的最近会话；MySQL 保存用户主动确认、可列表和软删除的长期偏好，是事实源；Milvus 只保存按 `user_id` 隔离的可重建向量索引。处理状态等事实型查询绕过偏好召回，Embedding 或 Milvus 不可用时回退 MySQL 最近偏好。当前不自动抽取聊天、不做重排，避免把噪声、过期内容或提示注入低成本地固化为长期事实。
+
+因此准确定位是“微服务中的受控 AI 辅助能力”，不是完整的自主 Agent 平台。Python Agent 的状态机、审批、执行和评测由独立项目 DG/FlowPilot 承担，SW 不重复引入编排复杂度。
 
 ## 10. 当前完成度和证据
 
@@ -193,12 +205,18 @@ AI Service 使用 WebFlux 和 SSE 输出流式结果，通过 Spring AI 调用 Q
 - Video 状态机、Outbox、租约恢复、Feed、死信准备/恢复和互动消费幂等测试。
 - Processor 消费和 FFmpeg 相关测试。
 - AI 助手和工具权限/诊断测试。
+- 视频商业 3 项定向单测、商品/优惠券/订单/履约/退款 HTTP E2E，以及 12 买家争抢 3 件库存的固定并发回归：3 单成功、9 单拒绝、MySQL 3 单、Redis 库存 0、无超卖。
+- 个性化记忆 5 项定向单测、MySQL 保存/列表/删除 HTTP E2E、真实 Milvus 固定 768 维向量的写入/用户隔离检索/删除集成测试。
 - `verify-video-e2e.ps1`：成功上传到 `PUBLISHED / SUCCEEDED / Outbox SUCCESS`。
 - `verify-video-failure-e2e.ps1`：无效媒体进入 `REJECTED / FAILED / SUCCESS`。
+- `verify-follow-feed-e2e.ps1`：验证关注关系、异步发布、Feed Inbox、首次观看计数和同日重复去重。
 - `refresh-video-review-queue.ps1`、`measure-video-e2e.ps1` 和故障注入参数：用于死信、租约和回归基线演练。
 - GitHub Actions `Core Regression`：Java 21 下执行网关、视频异步链路和 AI 核心回归。
+- 浏览器真实联调：签名媒体 Range 请求 206、播放器 `readyState=4`，点赞、收藏、评论、搜索、关注和创作者 7 天趋势均已走查。
+- DG—SW 真实恢复联调：DG 对过期任务完成调查、提案、HITL 审批和受控恢复；SW 后验为 Video `PUBLISHED`、ProcessingTask `SUCCEEDED/retryCount=1`，恢复与发布 Outbox 均成功。
+- 前端浏览器验收：未登录只显示身份终端；登录后可见 Feed 商品卡、Commerce 完整入口和 AI 记忆管理面板，控制台无错误。
 
-当前固定开发机的串行延迟数据只能作为回归基线；面试中同时说明机器、样本、测试方式和“不代表生产吞吐”的限制。
+秋招核心主线已经完成并验证。当前固定开发机的串行延迟和小规模并发数据只能作为回归基线；面试中同时说明机器、样本、测试方式和“不代表生产吞吐”的限制。当前命令行环境未配置真实 Qwen Key，所以本轮 Milvus 合同已验证，但真实 Qwen Embedding 请求不列入通过证据。
 
 ## 11. 面向 2026 秋招的增强路线
 
@@ -206,6 +224,7 @@ AI Service 使用 WebFlux 和 SSE 输出流式结果，通过 Spring AI 调用 Q
 
 - 把点赞/收藏事件统一纳入 Outbox，补充 Publisher Confirm、失败重试和运维查询。
 - 为 Feign 私有接口增加服务身份认证、签名或 mTLS；Gateway 阻断继续保留，但不作为唯一安全层。
+- 为 Redis 秒杀缓存冷启动增加分布式初始化锁/版本，为提交后库存补偿增加 Outbox、重试和数据库—缓存对账。
 - 清理开发配置中的硬编码密钥和示例支付密钥，使用环境变量、密钥管理或本地占位配置。
 
 ### P1：让工程证据更接近生产
@@ -219,4 +238,5 @@ AI Service 使用 WebFlux 和 SSE 输出流式结果，通过 Spring AI 调用 Q
 - 对高粉丝创作者采用分批扇出、调度限流、热点读扩散或混合 Feed 策略，增加 Inbox 清理和历史数据归档。
 - 用 OpenTelemetry 统一 Reactor、Feign、RabbitMQ 的上下文传播，完善告警和 SLO。
 - 为 AI 工具建立离线问题集，评估工具选择正确率、权限越权率、幻觉率和超时率；增加结构化工具结果、提示词注入防护和模型降级。
-- 把 `mcp-server` 的向量记忆、商城检索和用户工具接成明确的 MCP 能力，再评估 Python Agent 的规划和工具编排，不急于引入多 Agent 复杂度。
+- 为个性化记忆建立召回效果数据集，再基于收益决定是否增加时间衰减、冲突合并、自动抽取或重排，不按组件数量堆叠 RAG。
+- SW 保持业务服务边界；需要 Agent 编排时通过受限接口与独立 DG/FlowPilot 集成，不把跨项目联调等同于服务间零信任已经完成。

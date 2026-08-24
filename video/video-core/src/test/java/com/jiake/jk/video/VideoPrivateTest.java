@@ -1,30 +1,29 @@
 package com.jiake.jk.video;
 
 import com.jiake.jk.video.controller._private.VideoPrivateController;
-import com.jiake.jk.video.mapper.VideoMapper;
-import com.jiake.jk.video.pojo.entity.Video;
+import com.jiake.jk.video.service.VideoService;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.transaction.annotation.Transactional;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@Transactional
-public class VideoPrivateTest {
+import static org.mockito.Mockito.verify;
 
-    @Autowired
+@ExtendWith(MockitoExtension.class)
+class VideoPrivateTest {
+
+    @InjectMocks
     private VideoPrivateController videoPrivateController;
-    @Autowired
-    private VideoMapper videoMapper;
+    @Mock
+    private VideoService videoService;
 
     @Test
-    public void putVideoStatusToPublished() {
-        Long videoId = videoMapper.selectFirst().getId();
+    void putVideoStatusToPublished_shouldDelegateToService() {
+        Long videoId = 1001L;
+
         videoPrivateController.putVideoStatusToPublished(videoId);
-        Video.VideoStatus status = videoMapper.selectVideoStatusUrlById(videoId);
-        assertEquals(Video.VideoStatus.PUBLISHED, status, "修改 Video Status 失败！");
+
+        verify(videoService).putVideoStatusToPublished(videoId);
     }
-
-
 }

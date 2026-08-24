@@ -25,7 +25,7 @@ xxl:
     access-token: ${XXL_JOB_ACCESS_TOKEN}
 
 milvus:
-  uri: http://milvus:19530
+  uri: ${SW_MILVUS_URI:http://${SW_MILVUS_HOST:localhost}:${SW_MILVUS_PORT:19530}}
 
 
 redisson:

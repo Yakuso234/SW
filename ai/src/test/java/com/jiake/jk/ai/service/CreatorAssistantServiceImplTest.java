@@ -14,7 +14,8 @@ class CreatorAssistantServiceImplTest {
     @Test
     void stream_shouldRejectBlankMessageBeforeCallingModel() {
         CreatorAssistantServiceImpl service = new CreatorAssistantServiceImpl(
-                mock(ChatClient.class), properties(true), mock(VideoProcessingTools.class));
+                mock(ChatClient.class), properties(true), mock(VideoProcessingTools.class),
+                mock(CreatorMemoryService.class));
 
         StepVerifier.create(service.stream(900001L, "trace-creator-001", " "))
                 .expectNextMatches(event -> "error".equals(event.event()) && event.data().contains("不能为空"))
@@ -24,7 +25,8 @@ class CreatorAssistantServiceImplTest {
     @Test
     void stream_shouldRejectWhenFeatureIsDisabled() {
         CreatorAssistantServiceImpl service = new CreatorAssistantServiceImpl(
-                mock(ChatClient.class), properties(false), mock(VideoProcessingTools.class));
+                mock(ChatClient.class), properties(false), mock(VideoProcessingTools.class),
+                mock(CreatorMemoryService.class));
 
         StepVerifier.create(service.stream(900001L, "trace-creator-002", "给我三个标题"))
                 .expectNextMatches(event -> "error".equals(event.event()) && event.data().contains("未启用"))

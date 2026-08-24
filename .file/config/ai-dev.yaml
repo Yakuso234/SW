@@ -43,3 +43,13 @@ sw:
       enabled: true
       stream-timeout-seconds: 45
       max-message-length: 1500
+      memory-enabled: true
+      session-turns: 8
+      session-ttl-hours: 24
+      retrieval-top-k: 5
+      fallback-limit: 5
+
+milvus:
+  uri: ${SW_MILVUS_URI:http://${SW_MILVUS_HOST:localhost}:${SW_MILVUS_PORT:19530}}
+  collection: creator_memory
+  dimensions: 768

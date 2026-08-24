@@ -12,4 +12,9 @@ public class CreatorAssistantProperties {
     private boolean enabled = true;
     private int streamTimeoutSeconds = 45;
     private int maxMessageLength = 1500;
+    private boolean memoryEnabled = true;
+    private int sessionTurns = 8;
+    private int sessionTtlHours = 24;
+    private int retrievalTopK = 5;
+    private int fallbackLimit = 5;
 }

@@ -1,7 +1,5 @@
 package com.jiake.jk.video.config;
 
-import io.milvus.client.MilvusServiceClient;
-import io.milvus.param.ConnectParam;
 import io.milvus.v2.client.ConnectConfig;
 import io.milvus.v2.client.MilvusClientV2;
 import lombok.Data;
@@ -14,17 +12,13 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "milvus")
 public class MilvusConfig {
 
-    private String uri;
+    private String uri = "http://localhost:19530";
 
     @Bean
     public MilvusClientV2 milvusClient() {
-        try {
-            ConnectConfig config = ConnectConfig.builder()
-                    .uri(uri)
-                    .build();
-            return new MilvusClientV2(config);
-        } catch (Exception e) {
-            return new MilvusClientV2(null);
-        }
+        ConnectConfig config = ConnectConfig.builder()
+                .uri(uri)
+                .build();
+        return new MilvusClientV2(config);
     }
 }

@@ -1,10 +1,13 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import CommercePanel from './components/CommercePanel.vue'
+import CreatorMemoryPanel from './components/CreatorMemoryPanel.vue'
 import {
   clearToken, deletePublishedVideos, favoriteVideo, finishUpload, followCreator, getComments, getFeed, getFollowFeed,
   getCreatorAnalytics, getLegacyFeed, getMyFavorites, getMyProcessing, getMyPublished, getMyRejected, getPresignedVideo,
   getProfile, getProfileDetail, getProfileStats, getToken, likeVideo, login, postComment, recordVideoView, register,
-  request, searchCreators, searchVideos, setToken, streamAssistant, submitVideo, unfollowCreator, updateProfile
+  request, searchCreators, searchVideos, setToken, streamAssistant, submitVideo, unfollowCreator, updateProfile,
+  getVideoProduct
 } from './api'
 
 const view = ref('feed')
@@ -17,6 +20,7 @@ const videos = ref([])
 const feedCursor = ref('')
 const feedHasMore = ref(false)
 const selectedVideo = ref(null)
+const selectedProduct = ref(null)
 const comments = ref([])
 const commentText = ref('')
 const loading = ref(false)
@@ -52,9 +56,9 @@ const demoVideos = [
 ]
 
 const isLoggedIn = computed(() => Boolean(token.value))
-const pageTitle = computed(() => view.value === 'feed' ? 'SIGNAL // FEED' : view.value === 'creator' ? 'CREATOR // OPS' : 'AI // OPS ASSISTANT')
-const currentSubtitle = computed(() => view.value === 'feed' ? '可靠发布后的内容消费与互动现场' : view.value === 'creator' ? '上传、处理、失败诊断与状态追踪' : '内容创作建议与权限受控的只读业务工具')
-const titleHtml = computed(() => view.value === 'ai' ? 'ASK THE <em>OPS</em>' : view.value === 'creator' ? 'PUBLISH WITH <em>PROOF</em>' : 'ENTER THE <em>FEED</em>')
+const pageTitle = computed(() => view.value === 'feed' ? 'SIGNAL // FEED' : view.value === 'creator' ? 'CREATOR // OPS' : view.value === 'commerce' ? 'MARKET // COMMERCE' : 'AI // OPS ASSISTANT')
+const currentSubtitle = computed(() => view.value === 'feed' ? '可靠发布后的内容消费与互动现场' : view.value === 'creator' ? '上传、处理、失败诊断与状态追踪' : view.value === 'commerce' ? '视频商品、限时秒杀、订单优惠券与售后' : '内容创作建议与权限受控的只读业务工具')
+const titleHtml = computed(() => view.value === 'ai' ? 'ASK THE <em>OPS</em>' : view.value === 'commerce' ? 'ENTER <em>MARKET 77</em>' : view.value === 'creator' ? 'PUBLISH WITH <em>PROOF</em>' : 'ENTER THE <em>FEED</em>')
 
 function showNotice(message, type = 'ok') { notice.value = message; noticeType.value = type; window.clearTimeout(showNotice.timer); showNotice.timer = window.setTimeout(() => { notice.value = '' }, 4200) }
 function unwrapList(value) { if (Array.isArray(value)) return value; return value?.items || value?.records || [] }
@@ -71,6 +75,13 @@ function normalizeVideo(item, index = 0) {
   }
 }
 
+async function hydrateProducts(items) {
+  await Promise.all(items.filter(item => !String(item.id).startsWith('demo-')).map(async (video) => {
+    try { video.product = await getVideoProduct(video.id) } catch { video.product = null }
+  }))
+  return items
+}
+
 async function loadFeed(reset = true) {
   loading.value = true; demoMode.value = false
   try {
@@ -82,6 +93,7 @@ async function loadFeed(reset = true) {
     if (!nextItems.length && reset && feedMode.value === 'public') {
       nextItems = (await getLegacyFeed()).map(normalizeVideo)
     }
+    await hydrateProducts(nextItems)
     videos.value = reset ? nextItems : [...videos.value, ...nextItems]
   } catch (error) {
     demoMode.value = true; videos.value = demoVideos.map((item) => ({ ...item }))
@@ -105,6 +117,7 @@ async function doSearch() {
     } else {
       creators.value = []
       videos.value = unwrapList(await searchVideos(search.value.trim())).map(normalizeVideo)
+      await hydrateProducts(videos.value)
     }
   }
   catch (error) { showNotice(error.message, 'error') }
@@ -140,6 +153,7 @@ async function recordPlayback(video) {
   }
 }
 async function sendComment() { if (!requireLogin() || !selectedVideo.value || !commentText.value.trim()) return; try { await postComment(selectedVideo.value.id, commentText.value.trim()); commentText.value = ''; comments.value = unwrapList(await getComments(selectedVideo.value.id)); showNotice('评论已提交') } catch (error) { showNotice(error.message, 'error') } }
+function openCommerce(video) { if (!requireLogin() || !video?.product) return; selectedProduct.value = { ...video.product, creatorId: video.creatorId }; view.value = 'commerce' }
 
 async function submitAuth() {
   try {
@@ -251,6 +265,7 @@ onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadF
         <button :class="{ active: view === 'feed' }" @click="setView('feed')">01 / FEED</button>
         <button :class="{ active: view === 'creator' }" @click="setView('creator')">02 / CREATOR OPS</button>
         <button :class="{ active: view === 'ai' }" @click="setView('ai')">03 / AI ASSISTANT</button>
+        <button :class="{ active: view === 'commerce' }" @click="setView('commerce')">04 / COMMERCE</button>
       </nav>
       <div class="top-actions">
         <span class="net-status"><i></i> NETRUN / {{ demoMode ? 'SIM' : 'LIVE' }}</span>
@@ -294,7 +309,7 @@ onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadF
               </div>
               <div class="signal-copy">
                 <div><div class="eyebrow">SIGNAL ID // {{ video.id }}</div><h3>{{ video.description || '未命名信号' }}</h3><p>@{{ video.creatorName || 'UNKNOWN CREATOR' }} · ▶ {{ formatCount(video.views) }} VIEWS · {{ demoMode ? '视觉演示信号，不代表后端数据' : '经 Gateway 分发的公开视频' }}</p></div>
-                <div class="signal-actions"><button class="action-key" :class="{ on: video.isLike }" @click="toggleLike(video)"><b>♥</b><span>{{ formatCount(video.likes) }}<small>LIKE</small></span></button><button class="action-key" :class="{ on: video.isFavorite }" @click="toggleFavorite(video)"><b>◆</b><span>{{ formatCount(video.favorites) }}<small>SAVE</small></span></button><button class="action-key" @click="openVideo(video)"><b>▤</b><span>{{ formatCount(video.comments) }}<small>COMMENT</small></span></button></div>
+                <div><button v-if="video.product" class="product-drop" @click="openCommerce(video)"><small>LIMITED DROP // {{ video.product.activityStatus }}</small><b>{{ video.product.name }}</b><span><del>¥{{ (video.product.originalPriceCent / 100).toFixed(2) }}</del> ¥{{ ((video.product.salePriceCent || video.product.originalPriceCent) / 100).toFixed(2) }} · 剩余 {{ video.product.remainingStock }}</span></button><div class="signal-actions"><button class="action-key" :class="{ on: video.isLike }" @click="toggleLike(video)"><b>♥</b><span>{{ formatCount(video.likes) }}<small>LIKE</small></span></button><button class="action-key" :class="{ on: video.isFavorite }" @click="toggleFavorite(video)"><b>◆</b><span>{{ formatCount(video.favorites) }}<small>SAVE</small></span></button><button class="action-key" @click="openVideo(video)"><b>▤</b><span>{{ formatCount(video.comments) }}<small>COMMENT</small></span></button></div></div>
               </div>
             </article>
             <button v-if="feedHasMore" class="btn yellow load-more" @click="loadMoreFeed">LOAD NEXT SIGNALS ↓</button>
@@ -307,8 +322,12 @@ onMounted(async () => { if (isLoggedIn.value) { await loadProfile(); await loadF
         <div class="workspace"><section class="panel"><h3>UPLOAD PIPELINE // CREATE</h3><div class="form-row"><label>VIDEO SOURCE / MP4</label><div class="dropzone"><div><strong>{{ selectedFile ? selectedFile.name : 'DROP MEDIA HERE' }}</strong><span>预签名直传 MinIO，不经过 Gateway 搬运大文件</span><br /><input type="file" accept="video/mp4,video/*" @change="(e) => onFileChange(e, 'video')" /></div></div></div><div class="form-row"><label>DESCRIPTION</label><textarea v-model="creatorForm.description" class="textarea" placeholder="写下这条信号的描述..."></textarea></div><div class="form-row"><label>TAGS / COMMA SEPARATED</label><input v-model="creatorForm.tags" class="field" /></div><div class="form-row"><label>COVER / OPTIONAL</label><input type="file" accept="image/*" @change="(e) => onFileChange(e, 'cover')" /></div><button class="btn pink" @click="publishVideo">EXECUTE PUBLISH →</button><div class="status-strip ok">{{ uploadState }}</div><h3 class="sub-panel-title">CREATOR PROFILE // UPDATE</h3><div class="form-row"><label>DISPLAY NAME</label><input v-model="profileDraft.name" class="field" maxlength="30" /></div><div class="form-row"><label>BIO</label><textarea v-model="profileDraft.bio" class="textarea compact" maxlength="160" placeholder="写下你的创作者身份简介..."></textarea></div><button class="btn ghost" @click="saveProfile">SYNC PROFILE →</button></section><section class="panel"><h3>CREATOR TELEMETRY // REAL DATA</h3><div class="metric-grid metric-grid-wide"><div class="metric"><b>{{ formatCount(analytics.publishedCount) }}</b><span>PUBLISHED</span></div><div class="metric"><b>{{ formatCount(analytics.views) }}</b><span>VIEWS</span></div><div class="metric"><b>{{ formatCount(profileStats.followerCount) }}</b><span>FOLLOWERS</span></div><div class="metric"><b>{{ formatCount(profileStats.followingCount) }}</b><span>FOLLOWING</span></div><div class="metric"><b>{{ formatCount(analytics.likes) }}</b><span>LIKES</span></div><div class="metric"><b>{{ formatCount(analytics.favorites) }}</b><span>SAVES</span></div></div><h4>7-DAY UNIQUE VIEW TREND</h4><div class="trend-chart"><div v-for="item in analytics.trends || []" :key="item.date" class="trend-bar"><span class="trend-value">{{ item.views }}</span><i :style="{ height: `${Math.max(8, Number(item.views || 0) / trendMax * 100)}%` }"></i><small>{{ item.date?.slice(5) }}</small></div></div><p class="analytics-note">同一登录用户对同一视频每天仅计一次观看；这是本地演示口径，不替代生产环境的完播率、风控与反刷量系统。</p><h4>PUBLISHED LIBRARY // DELETE</h4><div class="job-list"><div v-for="item in published.slice(0, 5)" :key="item.id" class="job"><div><b>{{ item.description || `VIDEO // ${item.id}` }}</b><small>▶ {{ item.views || 0 }} · ♥ {{ item.likes || 0 }} · ▤ {{ item.comments || 0 }} · ◆ {{ item.favorites || 0 }}</small></div><button class="btn small ghost danger" @click="deletePublishedVideo(item.id)">DELETE</button></div><div v-if="!published.length" class="empty">暂无已发布视频。</div></div><h4>MY SAVED SIGNALS</h4><div class="job-list"><div v-for="item in favoriteVideos.slice(0, 5)" :key="item.videoId || item.id" class="job"><div><b>{{ item.description || `VIDEO // ${item.videoId || item.id}` }}</b><small>◆ {{ item.favorites || 0 }} · CREATOR {{ item.creatorName || item.creatorId || 'UNKNOWN' }}</small></div><span class="badge">SAVED</span></div><div v-if="!favoriteVideos.length" class="empty">还没有收藏视频。</div></div><h4>RECENT PROCESSING JOBS</h4><div class="job-list"><div v-for="item in processing.slice(0, 5)" :key="item.id || item.videoId" class="job"><div><b>{{ item.description || `VIDEO // ${item.videoId || 'PENDING'}` }}</b><small>Outbox → RabbitMQ → Processor</small></div><span class="badge">PROCESSING</span></div><div v-if="!processing.length" class="empty">登录并发布视频后，处理状态会出现在这里。</div></div><h4>FAILURE RECOVERY</h4><div v-for="item in rejected.slice(0, 3)" :key="item.id || item.videoId" class="job"><div><b>VIDEO // {{ item.videoId || item.id }}</b><small>{{ item.errorMessage || '可通过 AI 助手诊断' }}</small></div><span class="badge fail">REJECTED</span></div></section></div>
       </template>
 
+      <template v-else-if="view === 'commerce'">
+        <CommercePanel :selected-product="selectedProduct" @clear-product="selectedProduct = null" />
+      </template>
+
       <template v-else>
-        <section class="ai-layout"><aside class="ai-sidebar"><h3>CREATOR ASSISTANT</h3><div class="eyebrow">CONTENT COPILOT + READ-ONLY TOOLS</div><div class="ai-note">AI 可以生成标题、简介、标签、选题与发布节奏；涉及业务事实时，只读取本人视频的处理状态与失败摘要。它不会发布视频、修改数据或绕过 creatorId 权限边界。</div><h4>TRY ASKING</h4><div class="ai-quick-grid"><button class="btn ghost small" @click="aiInput = '为可靠异步发布主题生成3个标题，并说明各自适合的受众'; askAssistant()">标题建议</button><button class="btn ghost small" @click="aiInput = '为短视频生成一份简介和5个标签，主题是可靠异步发布'; askAssistant()">简介与标签</button><button class="btn ghost small" @click="aiInput = '给我3个适合后端开发者账号的短视频选题'; askAssistant()">选题策划</button><button class="btn ghost small" @click="aiInput = '给我一周短视频发布节奏建议，并说明理由'; askAssistant()">发布节奏</button><button class="btn ghost small" @click="aiInput = '我想查询一个视频的处理进度，请告诉我需要提供什么'; askAssistant()">处理进度</button><button class="btn ghost small" @click="aiInput = '我想诊断视频处理失败，请告诉我需要提供什么'; askAssistant()">失败诊断</button></div></aside><div class="chat"><div class="chat-head"><b>OPS CHANNEL / TRACE-AWARE</b><span class="online">● {{ aiBusy ? 'STREAMING' : 'ONLINE' }}</span></div><div class="messages"><div v-for="(message, index) in aiMessages" :key="index" class="message" :class="{ user: message.role === 'user' }"><small>{{ message.role === 'user' ? 'YOU' : 'AI OPS' }}</small>{{ message.text || '...' }}</div></div><form class="chat-compose" @submit.prevent="askAssistant"><input v-model="aiInput" class="field" placeholder="输入创作者问题..." :disabled="aiBusy" /><button class="btn" :disabled="aiBusy">SEND</button></form></div></section>
+        <section class="ai-layout"><aside class="ai-sidebar"><h3>CREATOR ASSISTANT</h3><div class="eyebrow">CONTENT COPILOT + READ-ONLY TOOLS</div><div class="ai-note">AI 可以生成标题、简介、标签、选题与发布节奏；涉及业务事实时，只读取本人视频的处理状态与失败摘要。它不会发布视频、修改数据或绕过 creatorId 权限边界。</div><h4>TRY ASKING</h4><div class="ai-quick-grid"><button class="btn ghost small" @click="aiInput = '为可靠异步发布主题生成3个标题，并说明各自适合的受众'; askAssistant()">标题建议</button><button class="btn ghost small" @click="aiInput = '为短视频生成一份简介和5个标签，主题是可靠异步发布'; askAssistant()">简介与标签</button><button class="btn ghost small" @click="aiInput = '给我3个适合后端开发者账号的短视频选题'; askAssistant()">选题策划</button><button class="btn ghost small" @click="aiInput = '给我一周短视频发布节奏建议，并说明理由'; askAssistant()">发布节奏</button><button class="btn ghost small" @click="aiInput = '我想查询一个视频的处理进度，请告诉我需要提供什么'; askAssistant()">处理进度</button><button class="btn ghost small" @click="aiInput = '我想诊断视频处理失败，请告诉我需要提供什么'; askAssistant()">失败诊断</button></div><CreatorMemoryPanel /></aside><div class="chat"><div class="chat-head"><b>OPS CHANNEL / TRACE-AWARE</b><span class="online">● {{ aiBusy ? 'STREAMING' : 'ONLINE' }}</span></div><div class="messages"><div v-for="(message, index) in aiMessages" :key="index" class="message" :class="{ user: message.role === 'user' }"><small>{{ message.role === 'user' ? 'YOU' : 'AI OPS' }}</small>{{ message.text || '...' }}</div></div><form class="chat-compose" @submit.prevent="askAssistant"><input v-model="aiInput" class="field" placeholder="输入创作者问题..." :disabled="aiBusy" /><button class="btn" :disabled="aiBusy">SEND</button></form></div></section>
       </template>
     </main>
 
