@@ -92,7 +92,9 @@ $sale = (Invoke-SwResult -Method Post -Path '/video/api/me/commerce/flash-sales'
 
 $client = [System.Net.Http.HttpClient]::new()
 $client.Timeout = [TimeSpan]::FromSeconds(30)
-$tasks = foreach ($token in $buyerTokens) {
+$batchStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$pendingRequests = [System.Collections.Generic.List[object]]::new()
+foreach ($token in $buyerTokens) {
     $request = [System.Net.Http.HttpRequestMessage]::new(
         [System.Net.Http.HttpMethod]::Post,
         "$GatewayUrl/video/api/me/commerce/orders"
@@ -105,21 +107,32 @@ $tasks = foreach ($token in $buyerTokens) {
         receiverAddress = '隔离测试地址'
     } | ConvertTo-Json -Compress
     $request.Content = [System.Net.Http.StringContent]::new($body, [Text.Encoding]::UTF8, 'application/json')
-    $client.SendAsync($request)
+    [void]$pendingRequests.Add([pscustomobject]@{
+        StartedTimestamp = [System.Diagnostics.Stopwatch]::GetTimestamp()
+        Task = $client.SendAsync($request)
+    })
 }
 
-$startedAt = [DateTimeOffset]::UtcNow
-$results = foreach ($task in $tasks) {
-    $response = $task.GetAwaiter().GetResult()
+$results = [System.Collections.Generic.List[object]]::new()
+while ($pendingRequests.Count -gt 0) {
+    $completedTask = [System.Threading.Tasks.Task]::WhenAny(
+        [System.Threading.Tasks.Task[]]@($pendingRequests | ForEach-Object { $_.Task })
+    ).GetAwaiter().GetResult()
+    $pending = @($pendingRequests | Where-Object { $_.Task -eq $completedTask }) | Select-Object -First 1
+    [void]$pendingRequests.Remove($pending)
+    $response = $pending.Task.GetAwaiter().GetResult()
     $content = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    $latencyMs = (([System.Diagnostics.Stopwatch]::GetTimestamp() - $pending.StartedTimestamp) * 1000.0) /
+        [System.Diagnostics.Stopwatch]::Frequency
     try {
         $json = $content | ConvertFrom-Json
-        [pscustomobject]@{ StatusCode = [int]$response.StatusCode; Code = $json.code; Message = $json.msg }
+        [void]$results.Add([pscustomobject]@{ StatusCode = [int]$response.StatusCode; Code = $json.code; Message = $json.msg; LatencyMs = $latencyMs })
     } catch {
-        [pscustomobject]@{ StatusCode = [int]$response.StatusCode; Code = $null; Message = $content }
+        [void]$results.Add([pscustomobject]@{ StatusCode = [int]$response.StatusCode; Code = $null; Message = $content; LatencyMs = $latencyMs })
     }
 }
-$elapsedMs = ([DateTimeOffset]::UtcNow - $startedAt).TotalMilliseconds
+$batchStopwatch.Stop()
+$elapsedMs = $batchStopwatch.Elapsed.TotalMilliseconds
 $client.Dispose()
 
 $successCount = @($results | Where-Object Code -eq 1).Count
@@ -134,12 +147,20 @@ if ($successCount -ne $Stock) { throw "Expected $Stock successful orders but got
 if ([int]$dbOrderCount -ne $Stock) { throw "Expected $Stock database orders but got $dbOrderCount." }
 if ([int]$redisStock -ne 0) { throw "Expected Redis stock 0 but got $redisStock." }
 
+$sortedLatencyMs = @($results | ForEach-Object { $_.LatencyMs } | Sort-Object)
+$p50Index = [Math]::Min($sortedLatencyMs.Count - 1, [Math]::Ceiling($sortedLatencyMs.Count * 0.50) - 1)
+$p95Index = [Math]::Min($sortedLatencyMs.Count - 1, [Math]::Ceiling($sortedLatencyMs.Count * 0.95) - 1)
+$serverErrorCount = @($results | Where-Object { $_.StatusCode -ge 500 }).Count
+
 [pscustomobject]@{
     Scenario = "$BuyerCount concurrent buyers / stock $Stock"
     SuccessfulOrders = $successCount
     RejectedOrders = $rejectedCount
     DatabaseOrders = [int]$dbOrderCount
     RedisRemainingStock = [int]$redisStock
-    BatchElapsedMs = [math]::Round($elapsedMs, 2)
+    BatchWallClockMs = [math]::Round($elapsedMs, 2)
+    RequestP50Ms = [math]::Round($sortedLatencyMs[$p50Index], 2)
+    RequestP95Ms = [math]::Round($sortedLatencyMs[$p95Index], 2)
+    ServerErrors = $serverErrorCount
     Oversold = $false
 }

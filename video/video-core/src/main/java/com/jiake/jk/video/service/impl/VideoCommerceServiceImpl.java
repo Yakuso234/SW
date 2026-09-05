@@ -9,6 +9,9 @@ import com.jiake.jk.video.pojo.entity.*;
 import com.jiake.jk.video.pojo.request.*;
 import com.jiake.jk.video.pojo.response.*;
 import com.jiake.jk.video.service.VideoCommerceService;
+import com.jiake.jk.video.service.VideoCommerceStockCompensationService;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -22,12 +25,15 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.concurrent.TimeUnit;
 import java.util.*;
 
 @Service
 public class VideoCommerceServiceImpl implements VideoCommerceService {
     private static final String CAMPAIGN_KEY = "sw:commerce:flash-sale:%d";
     private static final String BUYER_KEY = "sw:commerce:flash-sale:%d:buyers";
+    private static final String CAMPAIGN_READY_KEY = "sw:commerce:flash-sale:%d:ready";
+    private static final String CAMPAIGN_INITIALIZATION_LOCK = "sw:commerce:flash-sale:%d:initializing";
 
     private final VideoMapper videoMapper;
     private final VideoProductMapper productMapper;
@@ -36,11 +42,13 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
     private final VideoUserCouponMapper userCouponMapper;
     private final VideoCommerceOrderMapper orderMapper;
     private final VideoRefundRequestMapper refundMapper;
+    private final VideoCommerceStockCompensationMapper stockCompensationMapper;
+    private final VideoCommerceStockCompensationService stockCompensationService;
     private final SnowflakeUtils snowflakeUtils;
     private final StringRedisTemplate redisTemplate;
+    private final RedissonClient redissonClient;
     private final RedisScript<Long> reserveScript;
     private final RedisScript<Long> releaseScript;
-    private final RedisScript<Long> restockScript;
 
     public VideoCommerceServiceImpl(VideoMapper videoMapper,
                                     VideoProductMapper productMapper,
@@ -49,11 +57,13 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
                                     VideoUserCouponMapper userCouponMapper,
                                     VideoCommerceOrderMapper orderMapper,
                                     VideoRefundRequestMapper refundMapper,
+                                    VideoCommerceStockCompensationMapper stockCompensationMapper,
+                                    VideoCommerceStockCompensationService stockCompensationService,
                                     SnowflakeUtils snowflakeUtils,
                                     StringRedisTemplate redisTemplate,
+                                    RedissonClient redissonClient,
                                     @Qualifier("flashSaleReserveScript") RedisScript<Long> reserveScript,
-                                    @Qualifier("flashSaleReleaseScript") RedisScript<Long> releaseScript,
-                                    @Qualifier("flashSaleRestockScript") RedisScript<Long> restockScript) {
+                                    @Qualifier("flashSaleReleaseScript") RedisScript<Long> releaseScript) {
         this.videoMapper = videoMapper;
         this.productMapper = productMapper;
         this.flashSaleMapper = flashSaleMapper;
@@ -61,11 +71,13 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
         this.userCouponMapper = userCouponMapper;
         this.orderMapper = orderMapper;
         this.refundMapper = refundMapper;
+        this.stockCompensationMapper = stockCompensationMapper;
+        this.stockCompensationService = stockCompensationService;
         this.snowflakeUtils = snowflakeUtils;
         this.redisTemplate = redisTemplate;
+        this.redissonClient = redissonClient;
         this.reserveScript = reserveScript;
         this.releaseScript = releaseScript;
-        this.restockScript = restockScript;
     }
 
     @Override
@@ -124,7 +136,7 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
         sale.setEndsAt(request.endsAt());
         sale.setStatus(VideoFlashSale.Status.ACTIVE);
         flashSaleMapper.insert(sale);
-        cacheCampaign(sale);
+        registerCampaignCacheAfterCommit(sale);
         return toProductCard(product, sale);
     }
 
@@ -422,7 +434,16 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
                 .eq(VideoCommerceOrder::getId, order.getId())
                 .eq(VideoCommerceOrder::getStatus, VideoCommerceOrder.Status.PENDING_PAYMENT));
         if (updated == 0) return;
-        registerRestockAfterCommit(order.getFlashSaleId());
+        if (order.getFlashSaleId() != null) {
+            VideoCommerceStockCompensation compensation = new VideoCommerceStockCompensation();
+            compensation.setId(snowflakeUtils.nextId());
+            compensation.setOrderId(order.getId());
+            compensation.setFlashSaleId(order.getFlashSaleId());
+            compensation.setStatus(VideoCommerceStockCompensation.Status.PENDING);
+            compensation.setRetryCount(0);
+            stockCompensationMapper.insert(compensation);
+            registerCompensationAfterCommit(compensation.getId());
+        }
         if (order.getUserCouponId() != null) {
             userCouponMapper.update(new LambdaUpdateWrapper<VideoUserCoupon>()
                     .set(VideoUserCoupon::getStatus, VideoUserCoupon.Status.AVAILABLE)
@@ -447,25 +468,44 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
         redisTemplate.execute(releaseScript, List.of(campaignKey(saleId), buyerKey(saleId)), String.valueOf(buyerId));
     }
 
-    private void registerRestockAfterCommit(Long saleId) {
+    private void registerCompensationAfterCommit(Long compensationId) {
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            restock(saleId);
+            stockCompensationService.processAfterCommit(compensationId);
             return;
         }
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                restock(saleId);
+                stockCompensationService.processAfterCommit(compensationId);
             }
         });
     }
 
-    private void restock(Long saleId) {
-        redisTemplate.execute(restockScript, List.of(campaignKey(saleId)));
-    }
-
     private void ensureCampaignCache(VideoFlashSale sale) {
-        if (Boolean.FALSE.equals(redisTemplate.hasKey(campaignKey(sale.getId())))) cacheCampaign(sale);
+        if (isCampaignReady(sale.getId())) {
+            return;
+        }
+        RLock lock = redissonClient.getLock(initializationLockKey(sale.getId()));
+        boolean acquired = false;
+        try {
+            acquired = lock.tryLock(3, TimeUnit.SECONDS);
+            if (!acquired) {
+                if (isCampaignReady(sale.getId())) {
+                    return;
+                }
+                throw new YHClientException("活动缓存初始化中，请稍后重试");
+            }
+            if (!isCampaignReady(sale.getId())) {
+                cacheCampaign(sale);
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new YHClientException("活动缓存初始化被中断，请稍后重试");
+        } finally {
+            if (acquired && lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
     }
 
     private void cacheCampaign(VideoFlashSale sale) {
@@ -491,6 +531,20 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
         orders.forEach(order -> buyerIds.add(String.valueOf(order.getBuyerId())));
         if (!buyerIds.isEmpty()) redisTemplate.opsForSet().add(buyerSetKey, buyerIds.toArray(String[]::new));
         redisTemplate.expire(buyerSetKey, ttl);
+        redisTemplate.opsForValue().set(campaignReadyKey(sale.getId()), "1", ttl);
+    }
+
+    private void registerCampaignCacheAfterCommit(VideoFlashSale sale) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            ensureCampaignCache(sale);
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                ensureCampaignCache(sale);
+            }
+        });
     }
 
     private void handleReserveResult(Long result) {
@@ -558,6 +612,12 @@ public class VideoCommerceServiceImpl implements VideoCommerceService {
 
     private String campaignKey(Long saleId) { return CAMPAIGN_KEY.formatted(saleId); }
     private String buyerKey(Long saleId) { return BUYER_KEY.formatted(saleId); }
+    private String campaignReadyKey(Long saleId) { return CAMPAIGN_READY_KEY.formatted(saleId); }
+    private String initializationLockKey(Long saleId) { return CAMPAIGN_INITIALIZATION_LOCK.formatted(saleId); }
+    private boolean isCampaignReady(Long saleId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(campaignKey(saleId)))
+                && Boolean.TRUE.equals(redisTemplate.hasKey(campaignReadyKey(saleId)));
+    }
     private int remainingStock(VideoFlashSale sale) {
         long pendingCount = orderMapper.selectCount(new LambdaQueryWrapper<VideoCommerceOrder>()
                 .eq(VideoCommerceOrder::getFlashSaleId, sale.getId())
